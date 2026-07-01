@@ -1,0 +1,754 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  IconArrowDown,
+  IconCheck,
+  IconChevronDown,
+  IconCopy,
+  IconDots,
+  IconMessages,
+  IconPaperclip,
+  IconPlayerStop,
+  IconPlus,
+  IconRefresh,
+  IconRobot,
+  IconSearch,
+  IconSend,
+  IconSparkles,
+} from "@tabler/icons-react";
+import { cn } from "@/lib/utils";
+import { formatTime, groupByDate, type TimeGroup } from "@/lib/format";
+import {
+  HR_AGENT,
+  seedConversations,
+  streamReply,
+  uid,
+  type ChatMessage,
+  type Conversation,
+  type StreamHandle,
+} from "@/lib/hr-onboarding-mock";
+
+type ChatStatus = "idle" | "waiting" | "streaming";
+
+const GROUP_ORDER: TimeGroup[] = ["Today", "Yesterday", "Last 7 days", "Older"];
+
+const suggestions = [
+  "What's covered in my benefits package?",
+  "How do I request time off?",
+  "Walk me through my first-day IT setup.",
+  "Can I expense a monitor for my home office?",
+];
+
+export function ChatWorkspace() {
+  const [conversations, setConversations] = useState<Conversation[]>(() =>
+    seedConversations(),
+  );
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [status, setStatus] = useState<ChatStatus>("idle");
+  const [search, setSearch] = useState("");
+  // In-memory draft-per-conversation (FR8). "" means the new-chat slot.
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+
+  const streamRef = useRef<StreamHandle | null>(null);
+  const activeStreamMsgId = useRef<string | null>(null);
+
+  useEffect(() => () => streamRef.current?.stop(), []);
+
+  const active = useMemo(
+    () => conversations.find((c) => c.id === activeId) ?? null,
+    [conversations, activeId],
+  );
+
+  const draftKey = activeId ?? "__new__";
+  const draft = drafts[draftKey] ?? "";
+
+  const setDraft = useCallback(
+    (value: string) => setDrafts((d) => ({ ...d, [draftKey]: value })),
+    [draftKey],
+  );
+
+  const patchConversation = useCallback(
+    (id: string, updater: (c: Conversation) => Conversation) =>
+      setConversations((list) =>
+        list.map((c) => (c.id === id ? updater(c) : c)),
+      ),
+    [],
+  );
+
+  const startStream = useCallback(
+    (conversationId: string, prompt: string) => {
+      const assistantId = uid();
+      const placeholder: ChatMessage = {
+        id: assistantId,
+        role: "assistant",
+        content: "",
+        createdAt: new Date(),
+        status: "waiting",
+      };
+
+      patchConversation(conversationId, (c) => ({
+        ...c,
+        messages: [...c.messages, placeholder],
+        updatedAt: new Date(),
+      }));
+
+      activeStreamMsgId.current = assistantId;
+      setStatus("waiting");
+
+      streamRef.current = streamReply(
+        prompt,
+        (chunk) => {
+          setStatus("streaming");
+          patchConversation(conversationId, (c) => ({
+            ...c,
+            messages: c.messages.map((m) =>
+              m.id === assistantId
+                ? { ...m, content: m.content + chunk, status: "streaming" }
+                : m,
+            ),
+          }));
+        },
+        (final) => {
+          patchConversation(conversationId, (c) => ({
+            ...c,
+            messages: c.messages.map((m) =>
+              m.id === assistantId
+                ? {
+                    ...m,
+                    content: final || m.content,
+                    status: m.status === "streaming" ? "completed" : "stopped",
+                  }
+                : m,
+            ),
+          }));
+          streamRef.current = null;
+          activeStreamMsgId.current = null;
+          setStatus("idle");
+        },
+      );
+    },
+    [patchConversation],
+  );
+
+  const handleSend = useCallback(() => {
+    const text = draft.trim();
+    if (!text || status !== "idle") return;
+
+    let convoId = activeId;
+    if (!convoId) {
+      convoId = uid();
+      const newConvo: Conversation = {
+        id: convoId,
+        title: text.length > 48 ? text.slice(0, 48) + "…" : text,
+        updatedAt: new Date(),
+        messages: [],
+      };
+      setConversations((list) => [newConvo, ...list]);
+      setActiveId(convoId);
+    }
+
+    const userMsg: ChatMessage = {
+      id: uid(),
+      role: "user",
+      content: text,
+      createdAt: new Date(),
+      status: "completed",
+    };
+
+    patchConversation(convoId, (c) => ({
+      ...c,
+      messages: [...c.messages, userMsg],
+      updatedAt: new Date(),
+    }));
+
+    setDraft("");
+    startStream(convoId, text);
+  }, [activeId, draft, patchConversation, setDraft, startStream, status]);
+
+  const handleStop = useCallback(() => {
+    streamRef.current?.stop();
+  }, []);
+
+  const handleRegenerate = useCallback(() => {
+    if (!active || status !== "idle") return;
+    // Find last user message
+    const lastUser = [...active.messages].reverse().find((m) => m.role === "user");
+    if (!lastUser) return;
+    // Remove trailing assistant messages that came after that user turn
+    const lastUserIdx = active.messages.lastIndexOf(lastUser);
+    patchConversation(active.id, (c) => ({
+      ...c,
+      messages: c.messages.slice(0, lastUserIdx + 1),
+    }));
+    startStream(active.id, lastUser.content);
+  }, [active, patchConversation, startStream, status]);
+
+  const handleNewChat = useCallback(() => {
+    streamRef.current?.stop();
+    setActiveId(null);
+    setStatus("idle");
+  }, []);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const list = q
+      ? conversations.filter((c) => c.title.toLowerCase().includes(q))
+      : conversations;
+    const grouped: Record<TimeGroup, Conversation[]> = {
+      Today: [],
+      Yesterday: [],
+      "Last 7 days": [],
+      Older: [],
+    };
+    for (const c of list) grouped[groupByDate(c.updatedAt)].push(c);
+    for (const g of GROUP_ORDER) {
+      grouped[g].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+    }
+    return grouped;
+  }, [conversations, search]);
+
+  return (
+    <div className="flex h-screen w-full bg-background text-foreground">
+      <Sidebar
+        grouped={filtered}
+        activeId={activeId}
+        search={search}
+        onSearch={setSearch}
+        onSelect={(id) => {
+          streamRef.current?.stop();
+          setActiveId(id);
+          setStatus("idle");
+        }}
+        onNewChat={handleNewChat}
+      />
+
+      <main className="flex min-w-0 flex-1 flex-col">
+        <Header />
+        {active ? (
+          <ChatArea
+            conversation={active}
+            status={status}
+            onRegenerate={handleRegenerate}
+          />
+        ) : (
+          <EmptyState onSuggestion={(s) => setDraft(s)} />
+        )}
+        <Composer
+          value={draft}
+          onChange={setDraft}
+          onSend={handleSend}
+          onStop={handleStop}
+          status={status}
+        />
+      </main>
+    </div>
+  );
+}
+
+/* ---------- Sidebar ---------------------------------------------------- */
+
+function Sidebar({
+  grouped,
+  activeId,
+  search,
+  onSearch,
+  onSelect,
+  onNewChat,
+}: {
+  grouped: Record<TimeGroup, Conversation[]>;
+  activeId: string | null;
+  search: string;
+  onSearch: (v: string) => void;
+  onSelect: (id: string) => void;
+  onNewChat: () => void;
+}) {
+  const total = GROUP_ORDER.reduce((n, g) => n + grouped[g].length, 0);
+  return (
+    <aside className="hidden w-72 shrink-0 flex-col border-r border-border bg-sidebar md:flex">
+      <div className="flex items-center gap-2 px-4 py-4">
+        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
+          <IconSparkles size={18} stroke={1.75} />
+        </div>
+        <div className="min-w-0">
+          <div className="text-sm font-semibold leading-tight">FPT.AI</div>
+          <div className="text-xs text-muted-foreground">Agent Workspace</div>
+        </div>
+      </div>
+
+      <div className="px-3">
+        <button
+          type="button"
+          onClick={onNewChat}
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow-xs transition-colors hover:bg-[var(--color-primary-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar"
+        >
+          <IconPlus size={16} stroke={2} />
+          New chat
+        </button>
+      </div>
+
+      <div className="px-3 pt-3">
+        <label className="flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-3 focus-within:border-primary focus-within:ring-2 focus-within:ring-ring/20">
+          <IconSearch size={16} className="text-muted-foreground" stroke={2} />
+          <input
+            value={search}
+            onChange={(e) => onSearch(e.target.value)}
+            placeholder="Search conversations"
+            className="min-w-0 flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
+          />
+        </label>
+      </div>
+
+      <nav className="mt-4 flex-1 overflow-y-auto px-2 pb-4">
+        {total === 0 ? (
+          <div className="px-3 py-8 text-center text-xs text-muted-foreground">
+            No conversations match &ldquo;{search}&rdquo;.
+          </div>
+        ) : (
+          GROUP_ORDER.map((group) =>
+            grouped[group].length ? (
+              <div key={group} className="mb-4">
+                <div className="px-3 pb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                  {group}
+                </div>
+                <ul className="flex flex-col gap-0.5">
+                  {grouped[group].map((c) => {
+                    const isActive = c.id === activeId;
+                    return (
+                      <li key={c.id}>
+                        <button
+                          type="button"
+                          onClick={() => onSelect(c.id)}
+                          className={cn(
+                            "group flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors",
+                            isActive
+                              ? "bg-accent text-accent-foreground"
+                              : "text-foreground hover:bg-accent/60",
+                          )}
+                        >
+                          <IconMessages
+                            size={16}
+                            stroke={1.75}
+                            className={cn(
+                              "shrink-0",
+                              isActive ? "text-primary" : "text-muted-foreground",
+                            )}
+                          />
+                          <span className="truncate">{c.title}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ) : null,
+          )
+        )}
+      </nav>
+
+      <div className="border-t border-border px-4 py-3">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <div className="h-2 w-2 rounded-full bg-success" />
+          <span>All systems operational</span>
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+/* ---------- Header ----------------------------------------------------- */
+
+function Header() {
+  return (
+    <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-background px-4">
+      <div className="flex items-center gap-3">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <IconRobot size={20} stroke={1.75} />
+        </div>
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-foreground">
+              {HR_AGENT.name}
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-[11px] font-medium text-success">
+              <span className="h-1.5 w-1.5 rounded-full bg-success" />
+              Live
+            </span>
+          </div>
+          <div className="truncate text-xs text-muted-foreground">
+            {HR_AGENT.capability}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          disabled
+          title="Only agent in this workspace"
+          className="flex h-9 cursor-not-allowed items-center gap-2 rounded-lg border border-border bg-muted px-3 text-sm text-muted-foreground"
+        >
+          {HR_AGENT.name}
+          <IconChevronDown size={14} stroke={2} />
+        </button>
+        <button
+          type="button"
+          className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          aria-label="More actions"
+        >
+          <IconDots size={16} stroke={2} />
+        </button>
+      </div>
+    </header>
+  );
+}
+
+/* ---------- Chat area -------------------------------------------------- */
+
+function ChatArea({
+  conversation,
+  status,
+  onRegenerate,
+}: {
+  conversation: Conversation;
+  status: ChatStatus;
+  onRegenerate: () => void;
+}) {
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const [atBottom, setAtBottom] = useState(true);
+  const [unread, setUnread] = useState(0);
+  const lastCount = useRef(conversation.messages.length);
+
+  // Auto-scroll to bottom on conversation change
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+    lastCount.current = conversation.messages.length;
+    setAtBottom(true);
+    setUnread(0);
+  }, [conversation.id]);
+
+  // Track new messages while user is scrolled up
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const delta = conversation.messages.length - lastCount.current;
+    lastCount.current = conversation.messages.length;
+    if (atBottom) {
+      el.scrollTop = el.scrollHeight;
+    } else if (delta > 0) {
+      setUnread((n) => n + delta);
+    }
+  }, [conversation.messages, atBottom]);
+
+  // While streaming and pinned to bottom, keep pinned
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el || !atBottom) return;
+    el.scrollTop = el.scrollHeight;
+  }, [conversation.messages, atBottom]);
+
+  const onScroll = () => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const near = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+    setAtBottom(near);
+    if (near) setUnread(0);
+  };
+
+  const jumpToLatest = () => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    setUnread(0);
+    setAtBottom(true);
+  };
+
+  const lastMsg = conversation.messages[conversation.messages.length - 1];
+  const canRegenerate =
+    status === "idle" &&
+    lastMsg?.role === "assistant" &&
+    (lastMsg.status === "completed" || lastMsg.status === "stopped");
+
+  return (
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      <div
+        ref={scrollerRef}
+        onScroll={onScroll}
+        className="flex-1 overflow-y-auto"
+      >
+        <div className="mx-auto flex max-w-3xl flex-col gap-6 px-6 py-8">
+          {conversation.messages.map((m, i) => (
+            <MessageRow
+              key={m.id}
+              message={m}
+              isLast={i === conversation.messages.length - 1}
+              canRegenerate={
+                canRegenerate && i === conversation.messages.length - 1
+              }
+              onRegenerate={onRegenerate}
+            />
+          ))}
+        </div>
+      </div>
+
+      {!atBottom && unread > 0 && (
+        <button
+          type="button"
+          onClick={jumpToLatest}
+          className="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground shadow-md transition-colors hover:bg-accent"
+        >
+          <IconArrowDown size={14} stroke={2} />
+          {unread} new {unread === 1 ? "message" : "messages"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/* ---------- Message ---------------------------------------------------- */
+
+function MessageRow({
+  message,
+  canRegenerate,
+  onRegenerate,
+}: {
+  message: ChatMessage;
+  isLast: boolean;
+  canRegenerate: boolean;
+  onRegenerate: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  const isUser = message.role === "user";
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(message.content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* noop */
+    }
+  };
+
+  if (isUser) {
+    return (
+      <div className="group flex justify-end">
+        <div className="flex max-w-[80%] flex-col items-end gap-1">
+          <div className="rounded-2xl rounded-tr-md bg-primary px-4 py-2.5 text-sm leading-relaxed text-primary-foreground shadow-xs">
+            <p className="whitespace-pre-wrap">{message.content}</p>
+          </div>
+          <div className="flex items-center gap-2 pr-1 text-[11px] text-muted-foreground">
+            <button
+              type="button"
+              onClick={copy}
+              className="flex items-center gap-1 opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+            >
+              {copied ? <IconCheck size={12} /> : <IconCopy size={12} />}
+              {copied ? "Copied" : "Copy"}
+            </button>
+            <span>{formatTime(message.createdAt)}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="group flex items-start gap-3">
+      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+        <IconRobot size={18} stroke={1.75} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="mb-1 flex items-baseline gap-2">
+          <span className="text-sm font-semibold text-foreground">
+            {HR_AGENT.name}
+          </span>
+          <span className="text-[11px] text-muted-foreground">
+            {formatTime(message.createdAt)}
+          </span>
+        </div>
+
+        {message.status === "waiting" && message.content === "" ? (
+          <div className="flex items-center gap-2 py-1">
+            <span className="shimmer-text text-sm font-medium">Thinking…</span>
+          </div>
+        ) : (
+          <div
+            className={cn(
+              "prose prose-sm max-w-none text-sm leading-relaxed text-foreground",
+              message.status === "streaming" && "typing-caret",
+            )}
+          >
+            {message.content.split("\n").map((line, i) => (
+              <p key={i} className="my-1.5 whitespace-pre-wrap">
+                {line || "\u00A0"}
+              </p>
+            ))}
+          </div>
+        )}
+
+        {message.status === "stopped" && (
+          <div className="mt-1 text-xs text-muted-foreground">
+            Generation stopped.
+          </div>
+        )}
+
+        {(message.status === "completed" || message.status === "stopped") && (
+          <div className="mt-2 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+            <MsgAction icon={copied ? IconCheck : IconCopy} label={copied ? "Copied" : "Copy"} onClick={copy} />
+            {canRegenerate && (
+              <MsgAction icon={IconRefresh} label="Regenerate" onClick={onRegenerate} />
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MsgAction({
+  icon: Icon,
+  label,
+  onClick,
+}: {
+  icon: typeof IconCopy;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+    >
+      <Icon size={13} stroke={2} />
+      {label}
+    </button>
+  );
+}
+
+/* ---------- Composer --------------------------------------------------- */
+
+function Composer({
+  value,
+  onChange,
+  onSend,
+  onStop,
+  status,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onSend: () => void;
+  onStop: () => void;
+  status: ChatStatus;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  const streaming = status !== "idle";
+  const canSend = value.trim().length > 0 && status === "idle";
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 200) + "px";
+  }, [value]);
+
+  useEffect(() => {
+    if (status === "idle") ref.current?.focus();
+  }, [status]);
+
+  const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      if (canSend) onSend();
+    }
+  };
+
+  return (
+    <div className="shrink-0 border-t border-border bg-background px-4 pb-4 pt-3">
+      <div className="mx-auto max-w-3xl">
+        <div className="flex items-end gap-2 rounded-xl border border-border bg-background p-2 shadow-xs focus-within:border-primary focus-within:ring-2 focus-within:ring-ring/20">
+          <button
+            type="button"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            aria-label="Attach file"
+          >
+            <IconPaperclip size={18} stroke={1.75} />
+          </button>
+          <textarea
+            ref={ref}
+            rows={1}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            onKeyDown={handleKey}
+            placeholder="Message HR Onboarding…"
+            className="min-h-9 flex-1 resize-none bg-transparent px-1 py-2 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground focus:outline-none"
+          />
+          {streaming ? (
+            <button
+              type="button"
+              onClick={onStop}
+              className="flex h-9 items-center gap-1.5 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+            >
+              <IconPlayerStop size={14} stroke={2} />
+              Stop
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onSend}
+              disabled={!canSend}
+              className={cn(
+                "flex h-9 w-9 items-center justify-center rounded-lg transition-colors",
+                canSend
+                  ? "bg-primary text-primary-foreground hover:bg-[var(--color-primary-hover)]"
+                  : "bg-muted text-muted-foreground",
+              )}
+              aria-label="Send message"
+            >
+              <IconSend size={16} stroke={2} />
+            </button>
+          )}
+        </div>
+        <div className="mt-2 px-1 text-[11px] text-muted-foreground">
+          FPT.AI responses are guidance, not policy. Confirm anything critical with your HR partner.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Empty state ------------------------------------------------ */
+
+function EmptyState({ onSuggestion }: { onSuggestion: (v: string) => void }) {
+  return (
+    <div className="flex flex-1 items-center justify-center overflow-y-auto px-6 py-12">
+      <div className="mx-auto max-w-2xl text-center">
+        <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+          <IconRobot size={30} stroke={1.75} />
+        </div>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+          Onboard with confidence.
+        </h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Ask about your first 30 days — benefits, leave policy, equipment,
+          buddy program. HR Onboarding answers with the current policy for your
+          team.
+        </p>
+
+        <div className="mt-8 grid gap-2 sm:grid-cols-2">
+          {suggestions.map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => onSuggestion(s)}
+              className="rounded-lg border border-border bg-card p-3 text-left text-sm text-foreground shadow-xs transition-colors hover:border-primary/40 hover:bg-accent"
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
