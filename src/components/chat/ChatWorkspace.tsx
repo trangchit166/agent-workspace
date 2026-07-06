@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  IconAlertTriangle,
   IconArrowDown,
   IconCheck,
   IconChevronDown,
@@ -18,7 +19,9 @@ import {
 import { cn } from "@/lib/utils";
 import { formatTime, groupByDate, type TimeGroup } from "@/lib/format";
 import {
+  AVAILABLE_AGENTS,
   HR_AGENT,
+  getAgent,
   seedConversations,
   streamReply,
   uid,
@@ -26,6 +29,7 @@ import {
   type Conversation,
   type StreamHandle,
 } from "@/lib/hr-onboarding-mock";
+import { loadState, saveState } from "@/lib/persistence";
 
 type ChatStatus = "idle" | "waiting" | "streaming";
 
@@ -39,19 +43,29 @@ const suggestions = [
 ];
 
 export function ChatWorkspace() {
-  const [conversations, setConversations] = useState<Conversation[]>(() =>
-    seedConversations(),
+  // Rehydrate synchronously from localStorage so a reload restores the
+  // active conversation without a visible flash (US-01).
+  const initial = useMemo(() => loadState(), []);
+  const [conversations, setConversations] = useState<Conversation[]>(
+    () => initial?.conversations ?? seedConversations(),
   );
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(
+    initial?.activeId ?? null,
+  );
   const [status, setStatus] = useState<ChatStatus>("idle");
   const [search, setSearch] = useState("");
-  // In-memory draft-per-conversation (FR8). "" means the new-chat slot.
-  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [drafts, setDrafts] = useState<Record<string, string>>(
+    initial?.drafts ?? {},
+  );
 
   const streamRef = useRef<StreamHandle | null>(null);
-  const activeStreamMsgId = useRef<string | null>(null);
 
   useEffect(() => () => streamRef.current?.stop(), []);
+
+  // Persist on every meaningful change.
+  useEffect(() => {
+    saveState({ conversations, activeId, drafts });
+  }, [conversations, activeId, drafts]);
 
   const active = useMemo(
     () => conversations.find((c) => c.id === activeId) ?? null,
@@ -75,28 +89,45 @@ export function ChatWorkspace() {
   );
 
   const startStream = useCallback(
-    (conversationId: string, prompt: string) => {
-      const assistantId = uid();
-      const placeholder: ChatMessage = {
-        id: assistantId,
-        role: "assistant",
-        content: "",
-        createdAt: new Date(),
-        status: "waiting",
-      };
+    (conversationId: string, prompt: string, replaceId?: string) => {
+      const assistantId = replaceId ?? uid();
 
-      patchConversation(conversationId, (c) => ({
-        ...c,
-        messages: [...c.messages, placeholder],
-        updatedAt: new Date(),
-      }));
+      if (replaceId) {
+        patchConversation(conversationId, (c) => ({
+          ...c,
+          messages: c.messages.map((m) =>
+            m.id === replaceId
+              ? {
+                  ...m,
+                  content: "",
+                  status: "waiting",
+                  finishReason: undefined,
+                  errorMessage: undefined,
+                  createdAt: new Date(),
+                }
+              : m,
+          ),
+          updatedAt: new Date(),
+        }));
+      } else {
+        const placeholder: ChatMessage = {
+          id: assistantId,
+          role: "assistant",
+          content: "",
+          createdAt: new Date(),
+          status: "waiting",
+        };
+        patchConversation(conversationId, (c) => ({
+          ...c,
+          messages: [...c.messages, placeholder],
+          updatedAt: new Date(),
+        }));
+      }
 
-      activeStreamMsgId.current = assistantId;
       setStatus("waiting");
 
-      streamRef.current = streamReply(
-        prompt,
-        (chunk) => {
+      streamRef.current = streamReply(prompt, {
+        onToken: (chunk) => {
           setStatus("streaming");
           patchConversation(conversationId, (c) => ({
             ...c,
@@ -107,7 +138,7 @@ export function ChatWorkspace() {
             ),
           }));
         },
-        (final) => {
+        onDone: (final, reason) => {
           patchConversation(conversationId, (c) => ({
             ...c,
             messages: c.messages.map((m) =>
@@ -115,54 +146,76 @@ export function ChatWorkspace() {
                 ? {
                     ...m,
                     content: final || m.content,
-                    status: m.status === "streaming" ? "completed" : "stopped",
+                    status: reason === "user_stop" ? "stopped" : "completed",
+                    finishReason: reason,
                   }
                 : m,
             ),
           }));
           streamRef.current = null;
-          activeStreamMsgId.current = null;
           setStatus("idle");
         },
-      );
+        onError: (partial, message) => {
+          patchConversation(conversationId, (c) => ({
+            ...c,
+            messages: c.messages.map((m) =>
+              m.id === assistantId
+                ? {
+                    ...m,
+                    content: partial,
+                    status: "failed",
+                    finishReason: "error",
+                    errorMessage: message,
+                  }
+                : m,
+            ),
+          }));
+          streamRef.current = null;
+          setStatus("idle");
+        },
+      });
     },
     [patchConversation],
   );
 
-  const handleSend = useCallback(() => {
-    const text = draft.trim();
-    if (!text || status !== "idle") return;
+  const handleSend = useCallback(
+    (agentIdForNew?: string) => {
+      const text = draft.trim();
+      if (!text || status !== "idle") return;
 
-    let convoId = activeId;
-    if (!convoId) {
-      convoId = uid();
-      const newConvo: Conversation = {
-        id: convoId,
-        title: text.length > 48 ? text.slice(0, 48) + "…" : text,
-        updatedAt: new Date(),
-        messages: [],
+      let convoId = activeId;
+      if (!convoId) {
+        convoId = uid();
+        const newConvo: Conversation = {
+          id: convoId,
+          agentId: agentIdForNew ?? HR_AGENT.id,
+          title: text.length > 48 ? text.slice(0, 48) + "…" : text,
+          updatedAt: new Date(),
+          messages: [],
+        };
+        setConversations((list) => [newConvo, ...list]);
+        setActiveId(convoId);
+      }
+
+      const userMsg: ChatMessage = {
+        id: uid(),
+        role: "user",
+        content: text,
+        createdAt: new Date(),
+        status: "completed",
       };
-      setConversations((list) => [newConvo, ...list]);
-      setActiveId(convoId);
-    }
 
-    const userMsg: ChatMessage = {
-      id: uid(),
-      role: "user",
-      content: text,
-      createdAt: new Date(),
-      status: "completed",
-    };
+      patchConversation(convoId, (c) => ({
+        ...c,
+        messages: [...c.messages, userMsg],
+        updatedAt: new Date(),
+      }));
 
-    patchConversation(convoId, (c) => ({
-      ...c,
-      messages: [...c.messages, userMsg],
-      updatedAt: new Date(),
-    }));
-
-    setDraft("");
-    startStream(convoId, text);
-  }, [activeId, draft, patchConversation, setDraft, startStream, status]);
+      setDraft("");
+      startStream(convoId, text);
+    },
+    [activeId, draft, patchConversation, setDraft, startStream, status],
+  );
 
   const handleStop = useCallback(() => {
     streamRef.current?.stop();
@@ -170,10 +223,8 @@ export function ChatWorkspace() {
 
   const handleRegenerate = useCallback(() => {
     if (!active || status !== "idle") return;
-    // Find last user message
     const lastUser = [...active.messages].reverse().find((m) => m.role === "user");
     if (!lastUser) return;
-    // Remove trailing assistant messages that came after that user turn
     const lastUserIdx = active.messages.lastIndexOf(lastUser);
     patchConversation(active.id, (c) => ({
       ...c,
@@ -182,11 +233,35 @@ export function ChatWorkspace() {
     startStream(active.id, lastUser.content);
   }, [active, patchConversation, startStream, status]);
 
+  // Retry a specific failed/stopped assistant message in place.
+  const handleRetryMessage = useCallback(
+    (messageId: string) => {
+      if (!active || status !== "idle") return;
+      const idx = active.messages.findIndex((m) => m.id === messageId);
+      if (idx < 1) return;
+      const prompt = active.messages[idx - 1];
+      if (prompt.role !== "user") return;
+      startStream(active.id, prompt.content, messageId);
+    },
+    [active, startStream, status],
+  );
+
   const handleNewChat = useCallback(() => {
     streamRef.current?.stop();
     setActiveId(null);
     setStatus("idle");
   }, []);
+
+  // Change the agent on the active conversation. Locked after the first
+  // message is sent (PRD: "Agent gán cho hội thoại").
+  const handleChangeAgent = useCallback(
+    (agentId: string) => {
+      if (!active) return;
+      if (active.messages.length > 0) return;
+      patchConversation(active.id, (c) => ({ ...c, agentId }));
+    },
+    [active, patchConversation],
+  );
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -206,6 +281,9 @@ export function ChatWorkspace() {
     return grouped;
   }, [conversations, search]);
 
+  const headerAgent = active ? getAgent(active.agentId) : HR_AGENT;
+  const agentLocked = !!active && active.messages.length > 0;
+
   return (
     <div className="flex h-screen w-full bg-background text-foreground">
       <Sidebar
@@ -222,12 +300,17 @@ export function ChatWorkspace() {
       />
 
       <main className="flex min-w-0 flex-1 flex-col">
-        <Header />
+        <Header
+          agent={headerAgent}
+          locked={agentLocked}
+          onChangeAgent={handleChangeAgent}
+        />
         {active ? (
           <ChatArea
             conversation={active}
             status={status}
             onRegenerate={handleRegenerate}
+            onRetry={handleRetryMessage}
           />
         ) : (
           <EmptyState onSuggestion={(s) => setDraft(s)} />
@@ -235,9 +318,10 @@ export function ChatWorkspace() {
         <Composer
           value={draft}
           onChange={setDraft}
-          onSend={handleSend}
+          onSend={() => handleSend()}
           onStop={handleStop}
           status={status}
+          agentName={headerAgent.name}
         />
       </main>
     </div>
@@ -356,7 +440,27 @@ function Sidebar({
 
 /* ---------- Header ----------------------------------------------------- */
 
-function Header() {
+function Header({
+  agent,
+  locked,
+  onChangeAgent,
+}: {
+  agent: { id: string; name: string; capability: string };
+  locked: boolean;
+  onChangeAgent: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => {
+      const t = e.target as HTMLElement;
+      if (!t.closest("[data-agent-selector]")) setOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [open]);
+
   return (
     <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-background px-4">
       <div className="flex items-center gap-3">
@@ -366,7 +470,7 @@ function Header() {
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold text-foreground">
-              {HR_AGENT.name}
+              {agent.name}
             </span>
             <span className="inline-flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-[11px] font-medium text-success">
               <span className="h-1.5 w-1.5 rounded-full bg-success" />
@@ -374,21 +478,77 @@ function Header() {
             </span>
           </div>
           <div className="truncate text-xs text-muted-foreground">
-            {HR_AGENT.capability}
+            {agent.capability}
           </div>
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="relative flex items-center gap-2" data-agent-selector>
         <button
           type="button"
-          disabled
-          title="Only agent in this workspace"
-          className="flex h-9 cursor-not-allowed items-center gap-2 rounded-lg border border-border bg-muted px-3 text-sm text-muted-foreground"
+          onClick={() => setOpen((v) => !v)}
+          disabled={locked}
+          title={
+            locked
+              ? "Agent is locked once the conversation starts"
+              : "Change agent"
+          }
+          className={cn(
+            "flex h-9 items-center gap-2 rounded-lg border border-border px-3 text-sm transition-colors",
+            locked
+              ? "cursor-not-allowed bg-muted text-muted-foreground"
+              : "bg-background text-foreground hover:bg-accent",
+          )}
         >
-          {HR_AGENT.name}
+          <IconRobot size={14} stroke={1.75} className="text-primary" />
+          {agent.name}
           <IconChevronDown size={14} stroke={2} />
         </button>
+        {open && (
+          <div className="absolute right-11 top-11 z-20 w-72 rounded-xl border border-border bg-popover p-1 shadow-lg">
+            <div className="px-3 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              Available agents
+            </div>
+            {AVAILABLE_AGENTS.map((a) => {
+              const selected = a.id === agent.id;
+              return (
+                <button
+                  key={a.id}
+                  type="button"
+                  onClick={() => {
+                    onChangeAgent(a.id);
+                    setOpen(false);
+                  }}
+                  className={cn(
+                    "flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition-colors",
+                    selected ? "bg-accent" : "hover:bg-accent/60",
+                  )}
+                >
+                  <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <IconRobot size={16} stroke={1.75} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-foreground">
+                        {a.name}
+                      </span>
+                      {selected && (
+                        <IconCheck
+                          size={14}
+                          stroke={2.25}
+                          className="text-primary"
+                        />
+                      )}
+                    </div>
+                    <div className="mt-0.5 text-xs text-muted-foreground">
+                      {a.tagline}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
         <button
           type="button"
           className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
@@ -407,17 +567,18 @@ function ChatArea({
   conversation,
   status,
   onRegenerate,
+  onRetry,
 }: {
   conversation: Conversation;
   status: ChatStatus;
   onRegenerate: () => void;
+  onRetry: (id: string) => void;
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const [atBottom, setAtBottom] = useState(true);
   const [unread, setUnread] = useState(0);
   const lastCount = useRef(conversation.messages.length);
 
-  // Auto-scroll to bottom on conversation change
   useEffect(() => {
     const el = scrollerRef.current;
     if (!el) return;
@@ -427,7 +588,6 @@ function ChatArea({
     setUnread(0);
   }, [conversation.id]);
 
-  // Track new messages while user is scrolled up
   useEffect(() => {
     const el = scrollerRef.current;
     if (!el) return;
@@ -440,7 +600,6 @@ function ChatArea({
     }
   }, [conversation.messages, atBottom]);
 
-  // While streaming and pinned to bottom, keep pinned
   useEffect(() => {
     const el = scrollerRef.current;
     if (!el || !atBottom) return;
@@ -486,6 +645,8 @@ function ChatArea({
                 canRegenerate && i === conversation.messages.length - 1
               }
               onRegenerate={onRegenerate}
+              onRetry={() => onRetry(m.id)}
+              canRetry={status === "idle" && m.status === "failed"}
             />
           ))}
         </div>
@@ -510,12 +671,16 @@ function ChatArea({
 function MessageRow({
   message,
   canRegenerate,
+  canRetry,
   onRegenerate,
+  onRetry,
 }: {
   message: ChatMessage;
   isLast: boolean;
   canRegenerate: boolean;
+  canRetry: boolean;
   onRegenerate: () => void;
+  onRetry: () => void;
 }) {
   const [copied, setCopied] = useState(false);
   const isUser = message.role === "user";
@@ -553,10 +718,25 @@ function MessageRow({
     );
   }
 
+  const isFailed = message.status === "failed";
+  const isStopped = message.status === "stopped";
+  const isWaiting = message.status === "waiting" && message.content === "";
+
   return (
     <div className="group flex items-start gap-3">
-      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-        <IconRobot size={18} stroke={1.75} />
+      <div
+        className={cn(
+          "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
+          isFailed
+            ? "bg-destructive/10 text-destructive"
+            : "bg-primary/10 text-primary",
+        )}
+      >
+        {isFailed ? (
+          <IconAlertTriangle size={18} stroke={1.75} />
+        ) : (
+          <IconRobot size={18} stroke={1.75} />
+        )}
       </div>
       <div className="min-w-0 flex-1">
         <div className="mb-1 flex items-baseline gap-2">
@@ -568,11 +748,11 @@ function MessageRow({
           </span>
         </div>
 
-        {message.status === "waiting" && message.content === "" ? (
+        {isWaiting ? (
           <div className="flex items-center gap-2 py-1">
             <span className="shimmer-text text-sm font-medium">Thinking…</span>
           </div>
-        ) : (
+        ) : message.content ? (
           <div
             className={cn(
               "prose prose-sm max-w-none text-sm leading-relaxed text-foreground",
@@ -585,19 +765,51 @@ function MessageRow({
               </p>
             ))}
           </div>
+        ) : null}
+
+        {(isStopped || isFailed) && (
+          <MessageStatusCaption
+            isFailed={isFailed}
+            message={
+              isFailed
+                ? message.errorMessage ?? "Something went wrong."
+                : "Generation stopped by you."
+            }
+          />
         )}
 
-        {message.status === "stopped" && (
-          <div className="mt-1 text-xs text-muted-foreground">
-            Generation stopped.
-          </div>
-        )}
-
-        {(message.status === "completed" || message.status === "stopped") && (
-          <div className="mt-2 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-            <MsgAction icon={copied ? IconCheck : IconCopy} label={copied ? "Copied" : "Copy"} onClick={copy} />
-            {canRegenerate && (
-              <MsgAction icon={IconRefresh} label="Regenerate" onClick={onRegenerate} />
+        {(message.status === "completed" ||
+          isStopped ||
+          isFailed) && (
+          <div
+            className={cn(
+              "mt-2 flex items-center gap-1 transition-opacity",
+              isFailed
+                ? "opacity-100"
+                : "opacity-0 group-hover:opacity-100",
+            )}
+          >
+            {message.content && (
+              <MsgAction
+                icon={copied ? IconCheck : IconCopy}
+                label={copied ? "Copied" : "Copy"}
+                onClick={copy}
+              />
+            )}
+            {canRetry && (
+              <MsgAction
+                icon={IconRefresh}
+                label="Try again"
+                onClick={onRetry}
+                emphasis
+              />
+            )}
+            {canRegenerate && !canRetry && (
+              <MsgAction
+                icon={IconRefresh}
+                label="Regenerate"
+                onClick={onRegenerate}
+              />
             )}
           </div>
         )}
@@ -606,20 +818,47 @@ function MessageRow({
   );
 }
 
+function MessageStatusCaption({
+  isFailed,
+  message,
+}: {
+  isFailed: boolean;
+  message: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "mt-1.5 flex items-center gap-1.5 text-xs",
+        isFailed ? "text-destructive" : "text-muted-foreground",
+      )}
+    >
+      {isFailed && <IconAlertTriangle size={12} stroke={2} />}
+      <span>{message}</span>
+    </div>
+  );
+}
+
 function MsgAction({
   icon: Icon,
   label,
   onClick,
+  emphasis = false,
 }: {
   icon: typeof IconCopy;
   label: string;
   onClick: () => void;
+  emphasis?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+      className={cn(
+        "flex items-center gap-1 rounded-md px-2 py-1 text-xs transition-colors",
+        emphasis
+          ? "border border-destructive/20 bg-destructive/5 text-destructive hover:bg-destructive/10"
+          : "text-muted-foreground hover:bg-accent hover:text-foreground",
+      )}
     >
       <Icon size={13} stroke={2} />
       {label}
@@ -635,12 +874,14 @@ function Composer({
   onSend,
   onStop,
   status,
+  agentName,
 }: {
   value: string;
   onChange: (v: string) => void;
   onSend: () => void;
   onStop: () => void;
   status: ChatStatus;
+  agentName: string;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const streaming = status !== "idle";
@@ -667,6 +908,18 @@ function Composer({
   return (
     <div className="shrink-0 border-t border-border bg-background px-4 pb-4 pt-3">
       <div className="mx-auto max-w-3xl">
+        {status === "waiting" && (
+          <div className="mb-2 flex items-center gap-2 px-1 text-xs text-muted-foreground">
+            <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
+            <span>{agentName} is thinking…</span>
+          </div>
+        )}
+        {status === "streaming" && (
+          <div className="mb-2 flex items-center gap-2 px-1 text-xs text-muted-foreground">
+            <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
+            <span>Streaming response — press Stop to interrupt.</span>
+          </div>
+        )}
         <div className="flex items-end gap-2 rounded-xl border border-border bg-background p-2 shadow-xs focus-within:border-primary focus-within:ring-2 focus-within:ring-ring/20">
           <button
             type="button"
@@ -681,7 +934,7 @@ function Composer({
             value={value}
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={handleKey}
-            placeholder="Message HR Onboarding…"
+            placeholder={`Message ${agentName}…`}
             className="min-h-9 flex-1 resize-none bg-transparent px-1 py-2 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground focus:outline-none"
           />
           {streaming ? (
@@ -736,6 +989,14 @@ function EmptyState({ onSuggestion }: { onSuggestion: (v: string) => void }) {
           team.
         </p>
 
+        <div className="mx-auto mt-6 inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground">
+          <IconRobot size={14} stroke={1.75} className="text-primary" />
+          <span>
+            Assigned agent:{" "}
+            <span className="font-medium text-foreground">{HR_AGENT.name}</span>
+          </span>
+        </div>
+
         <div className="mt-8 grid gap-2 sm:grid-cols-2">
           {suggestions.map((s) => (
             <button
@@ -748,6 +1009,10 @@ function EmptyState({ onSuggestion }: { onSuggestion: (v: string) => void }) {
             </button>
           ))}
         </div>
+
+        <p className="mt-6 text-[11px] text-muted-foreground">
+          Tip: type <code className="rounded bg-muted px-1 py-0.5">simulate error</code> to preview the failed-response state.
+        </p>
       </div>
     </div>
   );
