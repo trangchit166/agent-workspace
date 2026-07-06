@@ -14,27 +14,44 @@ export type MessageStatus =
   | "failed"
   | "stopped";
 
+export type FinishReason = "stop" | "user_stop" | "error" | "empty";
+
 export interface ChatMessage {
   id: string;
   role: MessageRole;
   content: string;
   createdAt: Date;
   status: MessageStatus;
+  finishReason?: FinishReason;
+  errorMessage?: string;
 }
 
 export interface Conversation {
   id: string;
   title: string;
+  agentId: string;
   updatedAt: Date;
   messages: ChatMessage[];
 }
 
-export const HR_AGENT = {
+export interface AgentDescriptor {
+  id: string;
+  name: string;
+  tagline: string;
+  capability: string;
+}
+
+export const HR_AGENT: AgentDescriptor = {
   id: "hr-onboarding",
   name: "HR Onboarding",
   tagline: "Guides new hires through their first 30 days.",
   capability: "Policy Q&A · Onboarding checklists · Benefits explainer",
 };
+
+export const AVAILABLE_AGENTS: AgentDescriptor[] = [HR_AGENT];
+
+export const getAgent = (id: string): AgentDescriptor =>
+  AVAILABLE_AGENTS.find((a) => a.id === id) ?? HR_AGENT;
 
 const uid = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -51,6 +68,7 @@ const daysAgo = (n: number, hour = 10, minute = 0) => {
 export const seedConversations = (): Conversation[] => [
   {
     id: uid(),
+    agentId: HR_AGENT.id,
     title: "First-day IT setup checklist",
     updatedAt: daysAgo(0, 9, 12),
     messages: [
@@ -68,11 +86,13 @@ export const seedConversations = (): Conversation[] => [
           "Welcome aboard. On day one you'll want to finish four things:\n\n1. Activate your corporate account and enable 2FA.\n2. Install the VPN client and sign in with your SSO credentials.\n3. Join the #new-hires and #announcements channels.\n4. Book your 30-min buddy intro from the calendar invite in your inbox.\n\nMost people wrap this up before lunch. Ping me if any step blocks you.",
         createdAt: daysAgo(0, 9, 12),
         status: "completed",
+        finishReason: "stop",
       },
     ],
   },
   {
     id: uid(),
+    agentId: HR_AGENT.id,
     title: "Parental leave policy",
     updatedAt: daysAgo(1, 15, 40),
     messages: [
@@ -90,11 +110,13 @@ export const seedConversations = (): Conversation[] => [
           "Full-time employees get 16 weeks of fully paid parental leave, usable any time in the first 12 months after the child's arrival. You can take it in up to three blocks — just file the request 30 days before each block.",
         createdAt: daysAgo(1, 15, 40),
         status: "completed",
+        finishReason: "stop",
       },
     ],
   },
   {
     id: uid(),
+    agentId: HR_AGENT.id,
     title: "Benefits enrollment window",
     updatedAt: daysAgo(3, 11, 5),
     messages: [
@@ -112,11 +134,13 @@ export const seedConversations = (): Conversation[] => [
           "You have 30 days from your start date to enroll. After that the next opportunity is the annual open-enrollment window in November. I can walk you through the health, dental, and 401(k) elections whenever you're ready.",
         createdAt: daysAgo(3, 11, 5),
         status: "completed",
+        finishReason: "stop",
       },
     ],
   },
   {
     id: uid(),
+    agentId: HR_AGENT.id,
     title: "Requesting equipment reimbursement",
     updatedAt: daysAgo(5, 16, 22),
     messages: [
@@ -134,11 +158,13 @@ export const seedConversations = (): Conversation[] => [
           "Yes — you have a USD 500 home-office stipend in your first 90 days. Buy the equipment, upload the receipt to the Expenses portal under \"Home office setup\", and reimbursement lands with your next paycheck.",
         createdAt: daysAgo(5, 16, 22),
         status: "completed",
+        finishReason: "stop",
       },
     ],
   },
   {
     id: uid(),
+    agentId: HR_AGENT.id,
     title: "Probation period expectations",
     updatedAt: daysAgo(14, 10, 30),
     messages: [
@@ -156,11 +182,13 @@ export const seedConversations = (): Conversation[] => [
           "Three checkpoints: a 30-day settling review with your manager, a 60-day feedback round with your team, and a 90-day formal confirmation. Focus on ramp-up projects, not shipping big features — nobody expects heroics in month one.",
         createdAt: daysAgo(14, 10, 30),
         status: "completed",
+        finishReason: "stop",
       },
     ],
   },
   {
     id: uid(),
+    agentId: HR_AGENT.id,
     title: "Public holiday calendar",
     updatedAt: daysAgo(28, 9, 0),
     messages: [
@@ -178,6 +206,7 @@ export const seedConversations = (): Conversation[] => [
           "It's synced to your work calendar automatically under \"Company holidays\". You can also find the printable PDF in the HR portal under Resources → Time off.",
         createdAt: daysAgo(28, 9, 0),
         status: "completed",
+        finishReason: "stop",
       },
     ],
   },
@@ -225,41 +254,61 @@ export interface StreamHandle {
   stop: () => void;
 }
 
+export interface StreamCallbacks {
+  onToken: (chunk: string) => void;
+  onDone: (final: string, reason: FinishReason) => void;
+  onError: (partial: string, message: string) => void;
+}
+
 /**
- * Simulates token-by-token streaming. Calls `onToken` with each new chunk,
- * `onDone` when finished, and stops immediately on `stop()`.
+ * Simulates token-by-token streaming. Includes:
+ *  - a "thinking" delay before the first token
+ *  - deterministic failure demo: prompts containing "simulate error" or
+ *    "trigger fail" fail mid-stream after a few tokens
+ *  - empty-reply auto-retry once, then fallback
  */
 export function streamReply(
   prompt: string,
-  onToken: (chunk: string) => void,
-  onDone: (final: string) => void,
+  { onToken, onDone, onError }: StreamCallbacks,
 ): StreamHandle {
-  const full = pickReply(prompt);
+  let full = pickReply(prompt);
+  // Empty-reply guard: retry once, then use fallback text.
+  if (!full.trim()) full = pickReply(prompt) || FALLBACK;
+
+  const shouldFail = /simulate error|trigger fail|fail now/i.test(prompt);
+  const failAt = shouldFail ? 6 : -1;
+
   const tokens = full.split(/(\s+)/); // keep whitespace
   let i = 0;
   let stopped = false;
+  let timer: ReturnType<typeof setTimeout> | null = null;
   let acc = "";
 
   const tick = () => {
     if (stopped) return;
+    if (failAt >= 0 && i === failAt) {
+      onError(acc, "Connection lost while streaming. You can try again.");
+      return;
+    }
     if (i >= tokens.length) {
-      onDone(acc);
+      onDone(acc, "stop");
       return;
     }
     acc += tokens[i];
     onToken(tokens[i]);
     i += 1;
-    setTimeout(tick, 22 + Math.random() * 40);
+    timer = setTimeout(tick, 22 + Math.random() * 40);
   };
 
-  // Initial "thinking" delay before first token
   const kickoff = setTimeout(tick, 550);
 
   return {
     stop: () => {
+      if (stopped) return;
       stopped = true;
       clearTimeout(kickoff);
-      onDone(acc);
+      if (timer) clearTimeout(timer);
+      onDone(acc, "user_stop");
     },
   };
 }
