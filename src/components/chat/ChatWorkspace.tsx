@@ -645,17 +645,17 @@ function SidebarItem({
       title={collapsed ? label : undefined}
       aria-label={collapsed ? label : undefined}
       className={cn(
-        "group flex w-full items-center rounded-md text-left text-[13px] transition-colors",
-        collapsed ? "h-9 justify-center px-0" : "gap-2.5 px-3 py-2",
+        "group flex w-full items-center rounded-lg text-left text-[13px] transition-colors",
+        collapsed ? "h-9 justify-center px-0" : "h-9 gap-2.5 px-3",
         active
-          ? "bg-background font-semibold text-foreground shadow-xs"
-          : "text-foreground/80 hover:bg-accent/60",
+          ? "border border-border/60 bg-background font-medium text-foreground shadow-xs"
+          : "text-foreground/80 hover:bg-accent",
       )}
     >
       <Icon
-        size={17}
+        size={18}
         stroke={1.75}
-        className={cn(active ? "text-foreground" : "text-muted-foreground")}
+        className={cn(active ? "text-primary" : "text-muted-foreground")}
       />
       {!collapsed && (
         <>
