@@ -647,14 +647,14 @@ function SidebarItem({
         "group flex w-full items-center rounded-lg text-left text-[13px] transition-colors",
         collapsed ? "h-9 justify-center px-0" : "h-9 gap-2.5 px-3",
         active
-          ? "border border-border/60 bg-background font-medium text-foreground shadow-xs"
+          ? "bg-accent font-semibold text-foreground"
           : "text-foreground/80 hover:bg-accent",
       )}
     >
       <Icon
         size={18}
         stroke={1.75}
-        className={cn(active ? "text-primary" : "text-muted-foreground")}
+        className={cn(active ? "text-foreground" : "text-muted-foreground")}
       />
       {!collapsed && (
         <>
