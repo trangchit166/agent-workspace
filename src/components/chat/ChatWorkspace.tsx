@@ -451,7 +451,13 @@ function Sidebar({
   ];
 
   return (
-    <aside className="hidden w-[248px] shrink-0 flex-col border-r border-border bg-sidebar md:flex">
+    <aside
+      className={cn(
+        "hidden shrink-0 flex-col overflow-hidden bg-sidebar transition-[width,border-color] duration-200 md:flex",
+        collapsed ? "w-0 border-r-0" : "w-[248px] border-r border-border",
+      )}
+      aria-hidden={collapsed}
+    >
       {/* Brand */}
       <div className="flex h-14 items-center justify-between px-4">
         <div className="flex items-center gap-1.5">
