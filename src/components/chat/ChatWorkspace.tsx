@@ -424,7 +424,7 @@ function Sidebar({
       {/* Primary nav */}
       <div className="px-2">
         {primary.map((item) => (
-          <SidebarItem key={item.key} {...item} />
+          <SidebarItem {...item} />
         ))}
       </div>
 
@@ -432,7 +432,7 @@ function Sidebar({
 
       <div className="px-2 pt-1">
         {secondary.map((item) => (
-          <SidebarItem key={item.key} {...item} />
+          <SidebarItem {...item} />
         ))}
       </div>
 
