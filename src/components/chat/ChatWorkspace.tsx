@@ -350,17 +350,7 @@ export function ChatWorkspace() {
       />
 
       <main className="relative flex min-w-0 flex-1 flex-col">
-        {collapsed && (
-          <button
-            type="button"
-            aria-label="Hiện thanh bên"
-            title="Hiện thanh bên (Ctrl+B)"
-            onClick={toggleSidebar}
-            className="absolute left-3 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background text-muted-foreground shadow-xs transition-colors hover:bg-accent hover:text-foreground"
-          >
-            <IconLayoutSidebar size={16} stroke={1.75} />
-          </button>
-        )}
+
 
         {active ? (
           <>
