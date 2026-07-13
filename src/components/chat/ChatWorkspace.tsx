@@ -423,16 +423,16 @@ function Sidebar({
 
       {/* Primary nav */}
       <div className="px-2">
-        {primary.map((item) => (
-          <SidebarItem key={item.key} {...item} />
+        {primary.map(({ key, ...item }) => (
+          <SidebarItem key={key} {...item} />
         ))}
       </div>
 
       <div className="mt-1 h-px bg-border/60 mx-3" />
 
       <div className="px-2 pt-1">
-        {secondary.map((item) => (
-          <SidebarItem key={item.key} {...item} />
+        {secondary.map(({ key, ...item }) => (
+          <SidebarItem key={key} {...item} />
         ))}
       </div>
 
