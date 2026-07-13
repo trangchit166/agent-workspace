@@ -471,6 +471,8 @@ function Sidebar({
         <button
           type="button"
           aria-label="Ẩn thanh bên"
+          title="Ẩn thanh bên (Ctrl+B)"
+          onClick={onToggle}
           className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         >
           <IconLayoutSidebar size={16} stroke={1.75} />
