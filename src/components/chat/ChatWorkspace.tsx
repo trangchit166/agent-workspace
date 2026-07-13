@@ -78,6 +78,38 @@ export function ChatWorkspace() {
 
   useEffect(() => () => streamRef.current?.stop(), []);
 
+  // Sidebar collapse. Start false on SSR to avoid hydration mismatch, then
+  // read the persisted preference in an effect.
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    try {
+      setCollapsed(localStorage.getItem("uaw:sidebar-collapsed") === "1");
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  const toggleSidebar = useCallback(() => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("uaw:sidebar-collapsed", next ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }, []);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "b") {
+        e.preventDefault();
+        toggleSidebar();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [toggleSidebar]);
+
   // Persist on every meaningful change.
   useEffect(() => {
     saveState({ conversations, activeId, drafts });
