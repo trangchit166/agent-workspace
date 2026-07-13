@@ -369,53 +369,102 @@ function Sidebar({
   onSelect: (id: string) => void;
   onNewChat: () => void;
 }) {
+  const [searchOpen, setSearchOpen] = useState(false);
   const total = GROUP_ORDER.reduce((n, g) => n + grouped[g].length, 0);
-  return (
-    <aside className="hidden w-72 shrink-0 flex-col border-r border-border bg-sidebar md:flex">
-      <div className="flex items-center gap-2 px-4 py-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
-          <IconSparkles size={18} stroke={1.75} />
-        </div>
-        <div className="min-w-0">
-          <div className="text-sm font-semibold leading-tight">FPT.AI</div>
-          <div className="text-xs text-muted-foreground">Agent Workspace</div>
-        </div>
-      </div>
+  const isHome = activeId === null;
 
-      <div className="px-3">
+  const primary = [
+    {
+      key: "new",
+      label: "Trò chuyện mới",
+      icon: IconPencilPlus,
+      shortcut: ["Ctrl", "⇧", "O"],
+      active: isHome,
+      onClick: onNewChat,
+    },
+    {
+      key: "search",
+      label: "Tìm kiếm",
+      icon: IconSearch,
+      shortcut: ["Ctrl", "K"],
+      active: false,
+      onClick: () => setSearchOpen((v) => !v),
+    },
+  ];
+
+  const secondary = [
+    { key: "projects", label: "Dự án", icon: IconFolder },
+    { key: "market", label: "Chợ Agent", icon: IconApps },
+    { key: "artifacts", label: "Artifacts", icon: IconFileText },
+    { key: "connections", label: "Kết nối", icon: IconPlug },
+    { key: "console", label: "Xây trong Console", icon: IconTerminal2 },
+  ];
+
+  return (
+    <aside className="hidden w-[248px] shrink-0 flex-col border-r border-border bg-sidebar md:flex">
+      {/* Brand */}
+      <div className="flex h-14 items-center justify-between px-4">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[17px] font-bold tracking-tight text-foreground">
+            FPT
+          </span>
+          <span className="flex h-4 w-4 items-center justify-center rounded-[3px] bg-primary text-[9px] font-bold text-primary-foreground">
+            .Ai
+          </span>
+        </div>
         <button
           type="button"
-          onClick={onNewChat}
-          className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow-xs transition-colors hover:bg-[var(--color-primary-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar"
+          aria-label="Ẩn thanh bên"
+          className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         >
-          <IconPlus size={16} stroke={2} />
-          New chat
+          <IconLayoutSidebar size={16} stroke={1.75} />
         </button>
       </div>
 
-      <div className="px-3 pt-3">
-        <label className="flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-3 focus-within:border-primary focus-within:ring-2 focus-within:ring-ring/20">
-          <IconSearch size={16} className="text-muted-foreground" stroke={2} />
-          <input
-            value={search}
-            onChange={(e) => onSearch(e.target.value)}
-            placeholder="Search conversations"
-            className="min-w-0 flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
-          />
-        </label>
+      {/* Primary nav */}
+      <div className="px-2">
+        {primary.map((item) => (
+          <SidebarItem key={item.key} {...item} />
+        ))}
       </div>
 
-      <nav className="mt-4 flex-1 overflow-y-auto px-2 pb-4">
-        {total === 0 ? (
-          <div className="px-3 py-8 text-center text-xs text-muted-foreground">
-            No conversations match &ldquo;{search}&rdquo;.
-          </div>
-        ) : (
+      <div className="mt-1 h-px bg-border/60 mx-3" />
+
+      <div className="px-2 pt-1">
+        {secondary.map((item) => (
+          <SidebarItem key={item.key} {...item} />
+        ))}
+      </div>
+
+      {/* Inline search + recent history */}
+      {searchOpen && (
+        <div className="px-3 pt-3">
+          <label className="flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-3 focus-within:border-primary focus-within:ring-2 focus-within:ring-ring/20">
+            <IconSearch size={14} className="text-muted-foreground" stroke={2} />
+            <input
+              value={search}
+              onChange={(e) => onSearch(e.target.value)}
+              placeholder="Tìm hội thoại"
+              autoFocus
+              className="min-w-0 flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
+            />
+          </label>
+        </div>
+      )}
+
+      <nav className="mt-3 flex-1 overflow-y-auto px-2 pb-3">
+        {total === 0 ? null : (
           GROUP_ORDER.map((group) =>
             grouped[group].length ? (
-              <div key={group} className="mb-4">
-                <div className="px-3 pb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                  {group}
+              <div key={group} className="mb-3">
+                <div className="px-3 pb-1 pt-2 text-[11px] font-medium text-muted-foreground">
+                  {group === "Today"
+                    ? "Hôm nay"
+                    : group === "Yesterday"
+                      ? "Hôm qua"
+                      : group === "Last 7 days"
+                        ? "7 ngày qua"
+                        : "Cũ hơn"}
                 </div>
                 <ul className="flex flex-col gap-0.5">
                   {grouped[group].map((c) => {
@@ -426,20 +475,12 @@ function Sidebar({
                           type="button"
                           onClick={() => onSelect(c.id)}
                           className={cn(
-                            "group flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors",
+                            "flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-[13px] transition-colors",
                             isActive
                               ? "bg-accent text-accent-foreground"
-                              : "text-foreground hover:bg-accent/60",
+                              : "text-foreground/80 hover:bg-accent/60",
                           )}
                         >
-                          <IconMessages
-                            size={16}
-                            stroke={1.75}
-                            className={cn(
-                              "shrink-0",
-                              isActive ? "text-primary" : "text-muted-foreground",
-                            )}
-                          />
                           <span className="truncate">{c.title}</span>
                         </button>
                       </li>
@@ -452,13 +493,83 @@ function Sidebar({
         )}
       </nav>
 
-      <div className="border-t border-border px-4 py-3">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <div className="h-2 w-2 rounded-full bg-success" />
-          <span>All systems operational</span>
+      {/* User */}
+      <div className="border-t border-border px-2 py-2">
+        <div className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-accent/60">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-[11px] font-semibold text-secondary-foreground">
+            TH
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[13px] font-medium leading-tight text-foreground">
+              Trang Nguyen Huyen
+            </div>
+            <div className="truncate text-[11px] text-muted-foreground">
+              Trang Nguyen Huyen …
+            </div>
+          </div>
+          <button
+            type="button"
+            aria-label="Đổi tài khoản"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-background hover:text-foreground"
+          >
+            <IconSelector size={14} stroke={1.75} />
+          </button>
+          <button
+            type="button"
+            aria-label="Thông báo"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-background hover:text-foreground"
+          >
+            <IconBell size={14} stroke={1.75} />
+          </button>
         </div>
       </div>
     </aside>
+  );
+}
+
+function SidebarItem({
+  label,
+  icon: Icon,
+  shortcut,
+  active,
+  onClick,
+}: {
+  label: string;
+  icon: typeof IconSearch;
+  shortcut?: string[];
+  active?: boolean;
+  onClick?: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "group flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-[13px] transition-colors",
+        active
+          ? "bg-background font-semibold text-foreground shadow-xs"
+          : "text-foreground/80 hover:bg-accent/60",
+      )}
+    >
+      <Icon
+        size={17}
+        stroke={1.75}
+        className={cn(active ? "text-foreground" : "text-muted-foreground")}
+      />
+      <span className="flex-1 truncate">{label}</span>
+      {shortcut && (
+        <span className="flex items-center gap-0.5">
+          {shortcut.map((k) => (
+            <kbd
+              key={k}
+              className="flex h-[18px] min-w-[18px] items-center justify-center rounded border border-border bg-background px-1 text-[10px] font-medium text-muted-foreground"
+            >
+              {k}
+            </kbd>
+          ))}
+        </span>
+      )}
+    </button>
   );
 }
 
