@@ -67,7 +67,7 @@
 }
 
 :root {
-  --radius: 0.625rem;
+  --radius: 0.75rem;
 
   /* Surfaces */
   --background: oklch(1 0 0);                         /* white */
@@ -104,7 +104,7 @@
   --ring: oklch(0.442 0.240 268);                     /* focus = brand */
 
   /* Sidebar */
-  --sidebar: oklch(0.984 0.003 247.858);              /* slate-50 */
+  --sidebar: oklch(0.977 0.005 247.858);              /* slate-50/60 wash */
   --sidebar-foreground: oklch(0.208 0.042 265.755);
   --sidebar-primary: oklch(0.442 0.240 268);
   --sidebar-primary-foreground: oklch(1 0 0);
