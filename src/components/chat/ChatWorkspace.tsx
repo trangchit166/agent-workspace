@@ -1106,48 +1106,233 @@ function Composer({
   );
 }
 
-/* ---------- Empty state ------------------------------------------------ */
+/* ---------- Home ------------------------------------------------------ */
 
-function EmptyState({ onSuggestion }: { onSuggestion: (v: string) => void }) {
+const QUICK_ACTIONS = [
+  { label: "Tổng hợp báo cáo", icon: IconChartBar, tint: "text-rose-500" },
+  { label: "Soạn email", icon: IconMail, tint: "text-emerald-500" },
+  { label: "Tìm tài liệu", icon: IconFileText, tint: "text-amber-500" },
+  { label: "Tạo Agent", icon: IconRobot, tint: "text-violet-500" },
+  { label: "Viết code", icon: IconCode, tint: "text-sky-500" },
+];
+
+const PENDING_TASKS = [
+  {
+    id: "t1",
+    title: "Cấp laptop — Nguyễn Hoàng Minh",
+    agent: "HR Onboarding Agent",
+    time: "09:30",
+    tags: ["MacBook Pro 14", "1 máy"],
+  },
+  {
+    id: "t2",
+    title: "Gửi email chào mừng & cấp thiết bị — Kiều Trang",
+    agent: "HR Onboarding Agent",
+    time: "08:48",
+    tags: [],
+  },
+];
+
+function greeting() {
+  const h = new Date().getHours();
+  if (h < 11) return "Chào buổi sáng";
+  if (h < 14) return "Chào buổi trưa";
+  if (h < 18) return "Chào buổi chiều";
+  return "Chào buổi tối";
+}
+
+function Home({
+  userName,
+  draft,
+  onDraftChange,
+  onSend,
+  status,
+}: {
+  userName: string;
+  draft: string;
+  onDraftChange: (v: string) => void;
+  onSend: () => void;
+  status: ChatStatus;
+}) {
+  const taRef = useRef<HTMLTextAreaElement>(null);
+  const canSend = draft.trim().length > 0 && status === "idle";
+
+  useEffect(() => {
+    const el = taRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 200) + "px";
+  }, [draft]);
+
+  const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      if (canSend) onSend();
+    }
+  };
+
   return (
-    <div className="flex flex-1 items-center justify-center overflow-y-auto px-6 py-12">
-      <div className="mx-auto max-w-2xl text-center">
-        <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-          <IconRobot size={30} stroke={1.75} />
-        </div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          Onboard with confidence.
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Ask about your first 30 days — benefits, leave policy, equipment,
-          buddy program. HR Onboarding answers with the current policy for your
-          team.
-        </p>
-
-        <div className="mx-auto mt-6 inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground">
-          <IconRobot size={14} stroke={1.75} className="text-primary" />
-          <span>
-            Assigned agent:{" "}
-            <span className="font-medium text-foreground">{HR_AGENT.name}</span>
-          </span>
+    <div className="flex flex-1 flex-col overflow-y-auto">
+      <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-6 pt-16 pb-10">
+        {/* Brand mark */}
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-border bg-card shadow-xs">
+          <svg viewBox="0 0 32 32" className="h-7 w-7 text-primary" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="16" cy="16" r="3" fill="currentColor" />
+            <circle cx="6" cy="8" r="2.2" fill="currentColor" />
+            <circle cx="26" cy="8" r="2.2" fill="currentColor" />
+            <circle cx="6" cy="24" r="2.2" fill="currentColor" />
+            <circle cx="26" cy="24" r="2.2" fill="currentColor" />
+            <line x1="16" y1="16" x2="6" y2="8" />
+            <line x1="16" y1="16" x2="26" y2="8" />
+            <line x1="16" y1="16" x2="6" y2="24" />
+            <line x1="16" y1="16" x2="26" y2="24" />
+          </svg>
         </div>
 
-        <div className="mt-8 grid gap-2 sm:grid-cols-2">
-          {suggestions.map((s) => (
+        {/* Greeting */}
+        <div className="mt-5 text-center">
+          <p className="text-[15px] text-foreground/80">
+            {greeting()}, <span className="font-medium">{userName}</span>{" "}
+            <span aria-hidden>👋</span>
+          </p>
+          <h1 className="mt-2 text-[32px] font-semibold leading-tight tracking-tight text-foreground">
+            Hôm nay bạn muốn{" "}
+            <span className="bg-gradient-to-r from-primary via-indigo-500 to-fuchsia-500 bg-clip-text text-transparent">
+              hoàn thành điều gì?
+            </span>
+          </h1>
+        </div>
+
+        {/* Hero composer */}
+        <div className="mt-8 rounded-2xl border border-border bg-card px-4 pt-4 pb-2 shadow-sm focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-ring/15">
+          <textarea
+            ref={taRef}
+            rows={2}
+            value={draft}
+            onChange={(e) => onDraftChange(e.target.value)}
+            onKeyDown={handleKey}
+            placeholder="Hỏi bất cứ điều gì hoặc giao việc cho Agent..."
+            className="block w-full resize-none bg-transparent text-[15px] leading-relaxed text-foreground placeholder:text-muted-foreground/80 focus:outline-none"
+          />
+          <div className="mt-2 flex items-center justify-between">
             <button
-              key={s}
               type="button"
-              onClick={() => onSuggestion(s)}
-              className="rounded-lg border border-border bg-card p-3 text-left text-sm text-foreground shadow-xs transition-colors hover:border-primary/40 hover:bg-accent"
+              aria-label="Đính kèm"
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             >
-              {s}
+              <IconPlus size={16} stroke={2} />
+            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                aria-label="Ghi âm"
+                className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              >
+                <IconMicrophone size={16} stroke={1.75} />
+              </button>
+              <button
+                type="button"
+                onClick={onSend}
+                disabled={!canSend}
+                aria-label="Gửi"
+                className={cn(
+                  "flex h-8 w-8 items-center justify-center rounded-full transition-colors",
+                  canSend
+                    ? "bg-primary text-primary-foreground hover:bg-[var(--color-primary-hover)]"
+                    : "bg-secondary text-muted-foreground",
+                )}
+              >
+                <IconArrowUp size={16} stroke={2.25} />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Quick actions */}
+        <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+          {QUICK_ACTIONS.map((a) => (
+            <button
+              key={a.label}
+              type="button"
+              onClick={() => onDraftChange(a.label + ": ")}
+              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3.5 py-1.5 text-[13px] text-foreground/85 shadow-xs transition-colors hover:border-primary/30 hover:bg-accent"
+            >
+              <a.icon size={14} stroke={1.75} className={a.tint} />
+              {a.label}
             </button>
           ))}
         </div>
 
-        <p className="mt-6 text-[11px] text-muted-foreground">
-          Tip: type <code className="rounded bg-muted px-1 py-0.5">simulate error</code> to preview the failed-response state.
-        </p>
+        {/* Pending tasks */}
+        <div className="mt-10">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-[14px] font-medium text-foreground">
+              <IconClipboardList size={16} stroke={1.75} className="text-primary" />
+              Cần bạn xử lý
+              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary/10 px-1.5 text-[11px] font-semibold text-primary">
+                {PENDING_TASKS.length}
+              </span>
+            </div>
+            <button
+              type="button"
+              className="text-[12px] font-medium text-muted-foreground hover:text-foreground"
+            >
+              Xem tất cả · {PENDING_TASKS.length} ›
+            </button>
+          </div>
+
+          <ul className="flex flex-col gap-2">
+            {PENDING_TASKS.map((t) => (
+              <li
+                key={t.id}
+                className="flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-2.5 shadow-xs transition-colors hover:border-primary/30"
+              >
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-muted-foreground">
+                  <IconFileText size={16} stroke={1.75} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[13px] font-medium text-foreground">
+                    {t.title}
+                  </div>
+                  <div className="mt-0.5 flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
+                    <span className="text-primary/80">{t.agent}</span>
+                    <span>·</span>
+                    <span>{t.time}</span>
+                    {t.tags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="ml-1 rounded-md bg-secondary px-1.5 py-0.5 text-[10.5px] text-secondary-foreground"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="inline-flex h-8 items-center gap-1 rounded-lg border border-border bg-background px-2.5 text-[12px] font-medium text-foreground/80 hover:bg-accent"
+                >
+                  <IconEye size={13} stroke={1.75} />
+                  Xem
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex h-8 items-center gap-1 rounded-lg bg-primary px-2.5 text-[12px] font-medium text-primary-foreground hover:bg-[var(--color-primary-hover)]"
+                >
+                  <IconCheck size={13} stroke={2} />
+                  Phê duyệt
+                </button>
+                <button
+                  type="button"
+                  aria-label="Bỏ qua"
+                  className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+                >
+                  <IconX size={14} stroke={2} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
     </div>
   );
