@@ -588,7 +588,7 @@ function Sidebar({
             </div>
           </div>
         ) : (
-          <div className="flex items-center gap-2 rounded-xl border border-border/60 bg-background px-2 py-2 shadow-xs">
+          <div className="flex items-center gap-2 rounded-xl px-2 py-2 hover:bg-accent">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary text-[11px] font-semibold text-secondary-foreground">
               TH
             </div>
