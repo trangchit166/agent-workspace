@@ -350,17 +350,7 @@ export function ChatWorkspace() {
       />
 
       <main className="relative flex min-w-0 flex-1 flex-col">
-        {collapsed && (
-          <button
-            type="button"
-            aria-label="Hiện thanh bên"
-            title="Hiện thanh bên (Ctrl+B)"
-            onClick={toggleSidebar}
-            className="absolute left-3 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background text-muted-foreground shadow-xs transition-colors hover:bg-accent hover:text-foreground"
-          >
-            <IconLayoutSidebar size={16} stroke={1.75} />
-          </button>
-        )}
+
 
         {active ? (
           <>
@@ -453,25 +443,31 @@ function Sidebar({
   return (
     <aside
       className={cn(
-        "hidden shrink-0 flex-col overflow-hidden bg-sidebar transition-[width,border-color] duration-200 md:flex",
-        collapsed ? "w-0 border-r-0" : "w-[248px] border-r border-border",
+        "hidden shrink-0 flex-col overflow-hidden border-r border-border bg-sidebar transition-[width] duration-200 md:flex",
+        collapsed ? "w-14" : "w-[248px]",
       )}
-      aria-hidden={collapsed}
     >
-      {/* Brand */}
-      <div className="flex h-14 items-center justify-between px-4">
+      {/* Brand + collapse toggle */}
+      <div
+        className={cn(
+          "flex h-14 items-center px-4",
+          collapsed ? "flex-col justify-center gap-2 px-0" : "justify-between",
+        )}
+      >
         <div className="flex items-center gap-1.5">
-          <span className="text-[17px] font-bold tracking-tight text-foreground">
-            FPT
-          </span>
+          {!collapsed && (
+            <span className="text-[17px] font-bold tracking-tight text-foreground">
+              FPT
+            </span>
+          )}
           <span className="flex h-4 w-4 items-center justify-center rounded-[3px] bg-primary text-[9px] font-bold text-primary-foreground">
             .Ai
           </span>
         </div>
         <button
           type="button"
-          aria-label="Ẩn thanh bên"
-          title="Ẩn thanh bên (Ctrl+B)"
+          aria-label={collapsed ? "Hiện thanh bên" : "Ẩn thanh bên"}
+          title={`${collapsed ? "Hiện" : "Ẩn"} thanh bên (Ctrl+B)`}
           onClick={onToggle}
           className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         >
@@ -480,22 +476,22 @@ function Sidebar({
       </div>
 
       {/* Primary nav */}
-      <div className="px-2">
+      <div className={cn(collapsed ? "px-1.5" : "px-2")}>
         {primary.map(({ key, ...item }) => (
-          <SidebarItem key={key} {...item} />
+          <SidebarItem key={key} {...item} collapsed={collapsed} />
         ))}
       </div>
 
       <div className="mt-1 h-px bg-border/60 mx-3" />
 
-      <div className="px-2 pt-1">
+      <div className={cn("pt-1", collapsed ? "px-1.5" : "px-2")}>
         {secondary.map(({ key, ...item }) => (
-          <SidebarItem key={key} {...item} />
+          <SidebarItem key={key} {...item} collapsed={collapsed} />
         ))}
       </div>
 
-      {/* Inline search + recent history */}
-      {searchOpen && (
+      {/* Inline search + recent history — only when expanded */}
+      {!collapsed && searchOpen && (
         <div className="px-3 pt-3">
           <label className="flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-3 focus-within:border-primary focus-within:ring-2 focus-within:ring-ring/20">
             <IconSearch size={14} className="text-muted-foreground" stroke={2} />
@@ -510,76 +506,91 @@ function Sidebar({
         </div>
       )}
 
-      <nav className="mt-3 flex-1 overflow-y-auto px-2 pb-3">
-        {total === 0 ? null : (
-          GROUP_ORDER.map((group) =>
-            grouped[group].length ? (
-              <div key={group} className="mb-3">
-                <div className="px-3 pb-1 pt-2 text-[11px] font-medium text-muted-foreground">
-                  {group === "Today"
-                    ? "Hôm nay"
-                    : group === "Yesterday"
-                      ? "Hôm qua"
-                      : group === "Last 7 days"
-                        ? "7 ngày qua"
-                        : "Cũ hơn"}
-                </div>
-                <ul className="flex flex-col gap-0.5">
-                  {grouped[group].map((c) => {
-                    const isActive = c.id === activeId;
-                    return (
-                      <li key={c.id}>
-                        <button
-                          type="button"
-                          onClick={() => onSelect(c.id)}
-                          className={cn(
-                            "flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-[13px] transition-colors",
-                            isActive
-                              ? "bg-accent text-accent-foreground"
-                              : "text-foreground/80 hover:bg-accent/60",
-                          )}
-                        >
-                          <span className="truncate">{c.title}</span>
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            ) : null,
-          )
-        )}
-      </nav>
+      {!collapsed ? (
+        <nav className="mt-3 flex-1 overflow-y-auto px-2 pb-3">
+          {total === 0
+            ? null
+            : GROUP_ORDER.map((group) =>
+                grouped[group].length ? (
+                  <div key={group} className="mb-3">
+                    <div className="px-3 pb-1 pt-2 text-[11px] font-medium text-muted-foreground">
+                      {group === "Today"
+                        ? "Hôm nay"
+                        : group === "Yesterday"
+                          ? "Hôm qua"
+                          : group === "Last 7 days"
+                            ? "7 ngày qua"
+                            : "Cũ hơn"}
+                    </div>
+                    <ul className="flex flex-col gap-0.5">
+                      {grouped[group].map((c) => {
+                        const isActive = c.id === activeId;
+                        return (
+                          <li key={c.id}>
+                            <button
+                              type="button"
+                              onClick={() => onSelect(c.id)}
+                              className={cn(
+                                "flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-[13px] transition-colors",
+                                isActive
+                                  ? "bg-accent text-accent-foreground"
+                                  : "text-foreground/80 hover:bg-accent/60",
+                              )}
+                            >
+                              <span className="truncate">{c.title}</span>
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                ) : null,
+              )}
+        </nav>
+      ) : (
+        <div className="flex-1" />
+      )}
 
       {/* User */}
-      <div className="border-t border-border px-2 py-2">
-        <div className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-accent/60">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-[11px] font-semibold text-secondary-foreground">
-            TH
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-[13px] font-medium leading-tight text-foreground">
-              Trang Nguyen Huyen
-            </div>
-            <div className="truncate text-[11px] text-muted-foreground">
-              Trang Nguyen Huyen …
+      <div className={cn("border-t border-border py-2", collapsed ? "px-1.5" : "px-2")}>
+        {collapsed ? (
+          <div className="flex justify-center">
+            <div
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary text-[11px] font-semibold text-secondary-foreground"
+              title="Trang Nguyen Huyen"
+            >
+              TH
             </div>
           </div>
-          <button
-            type="button"
-            aria-label="Đổi tài khoản"
-            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-background hover:text-foreground"
-          >
-            <IconSelector size={14} stroke={1.75} />
-          </button>
-          <button
-            type="button"
-            aria-label="Thông báo"
-            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-background hover:text-foreground"
-          >
-            <IconBell size={14} stroke={1.75} />
-          </button>
-        </div>
+        ) : (
+          <div className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-accent/60">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-[11px] font-semibold text-secondary-foreground">
+              TH
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[13px] font-medium leading-tight text-foreground">
+                Trang Nguyen Huyen
+              </div>
+              <div className="truncate text-[11px] text-muted-foreground">
+                Trang Nguyen Huyen …
+              </div>
+            </div>
+            <button
+              type="button"
+              aria-label="Đổi tài khoản"
+              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-background hover:text-foreground"
+            >
+              <IconSelector size={14} stroke={1.75} />
+            </button>
+            <button
+              type="button"
+              aria-label="Thông báo"
+              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-background hover:text-foreground"
+            >
+              <IconBell size={14} stroke={1.75} />
+            </button>
+          </div>
+        )}
       </div>
     </aside>
   );
@@ -591,19 +602,24 @@ function SidebarItem({
   shortcut,
   active,
   onClick,
+  collapsed,
 }: {
   label: string;
   icon: typeof IconSearch;
   shortcut?: string[];
   active?: boolean;
   onClick?: () => void;
+  collapsed?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      title={collapsed ? label : undefined}
+      aria-label={collapsed ? label : undefined}
       className={cn(
-        "group flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-[13px] transition-colors",
+        "group flex w-full items-center rounded-md text-left text-[13px] transition-colors",
+        collapsed ? "h-9 justify-center px-0" : "gap-2.5 px-3 py-2",
         active
           ? "bg-background font-semibold text-foreground shadow-xs"
           : "text-foreground/80 hover:bg-accent/60",
@@ -614,18 +630,22 @@ function SidebarItem({
         stroke={1.75}
         className={cn(active ? "text-foreground" : "text-muted-foreground")}
       />
-      <span className="flex-1 truncate">{label}</span>
-      {shortcut && (
-        <span className="flex items-center gap-0.5">
-          {shortcut.map((k) => (
-            <kbd
-              key={k}
-              className="flex h-[18px] min-w-[18px] items-center justify-center rounded border border-border bg-background px-1 text-[10px] font-medium text-muted-foreground"
-            >
-              {k}
-            </kbd>
-          ))}
-        </span>
+      {!collapsed && (
+        <>
+          <span className="flex-1 truncate">{label}</span>
+          {shortcut && (
+            <span className="flex items-center gap-0.5">
+              {shortcut.map((k) => (
+                <kbd
+                  key={k}
+                  className="flex h-[18px] min-w-[18px] items-center justify-center rounded border border-border bg-background px-1 text-[10px] font-medium text-muted-foreground"
+                >
+                  {k}
+                </kbd>
+              ))}
+            </span>
+          )}
+        </>
       )}
     </button>
   );
