@@ -558,7 +558,7 @@ function Sidebar({
                               className={cn(
                                 "flex h-8 w-full items-center gap-2 rounded-lg px-3 text-left text-[13px] transition-colors",
                                 isActive
-                                  ? "border border-border/60 bg-background text-foreground shadow-xs"
+                                  ? "bg-accent font-semibold text-foreground"
                                   : "text-foreground/80 hover:bg-accent",
                               )}
                             >
