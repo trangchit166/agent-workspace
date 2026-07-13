@@ -28,7 +28,7 @@ import {
   IconSearch,
   IconSelector,
   IconSend,
-  IconSidebar,
+  IconLayoutSidebar,
   IconTerminal2,
   IconX,
 } from "@tabler/icons-react";
