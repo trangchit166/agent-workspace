@@ -78,6 +78,38 @@ export function ChatWorkspace() {
 
   useEffect(() => () => streamRef.current?.stop(), []);
 
+  // Sidebar collapse. Start false on SSR to avoid hydration mismatch, then
+  // read the persisted preference in an effect.
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    try {
+      setCollapsed(localStorage.getItem("uaw:sidebar-collapsed") === "1");
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  const toggleSidebar = useCallback(() => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("uaw:sidebar-collapsed", next ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }, []);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "b") {
+        e.preventDefault();
+        toggleSidebar();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [toggleSidebar]);
+
   // Persist on every meaningful change.
   useEffect(() => {
     saveState({ conversations, activeId, drafts });
@@ -313,9 +345,23 @@ export function ChatWorkspace() {
           setStatus("idle");
         }}
         onNewChat={handleNewChat}
+        collapsed={collapsed}
+        onToggle={toggleSidebar}
       />
 
-      <main className="flex min-w-0 flex-1 flex-col">
+      <main className="relative flex min-w-0 flex-1 flex-col">
+        {collapsed && (
+          <button
+            type="button"
+            aria-label="Hiện thanh bên"
+            title="Hiện thanh bên (Ctrl+B)"
+            onClick={toggleSidebar}
+            className="absolute left-3 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background text-muted-foreground shadow-xs transition-colors hover:bg-accent hover:text-foreground"
+          >
+            <IconLayoutSidebar size={16} stroke={1.75} />
+          </button>
+        )}
+
         {active ? (
           <>
             <Header
@@ -361,6 +407,8 @@ function Sidebar({
   onSearch,
   onSelect,
   onNewChat,
+  collapsed,
+  onToggle,
 }: {
   grouped: Record<TimeGroup, Conversation[]>;
   activeId: string | null;
@@ -368,6 +416,8 @@ function Sidebar({
   onSearch: (v: string) => void;
   onSelect: (id: string) => void;
   onNewChat: () => void;
+  collapsed: boolean;
+  onToggle: () => void;
 }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const total = GROUP_ORDER.reduce((n, g) => n + grouped[g].length, 0);
@@ -401,7 +451,13 @@ function Sidebar({
   ];
 
   return (
-    <aside className="hidden w-[248px] shrink-0 flex-col border-r border-border bg-sidebar md:flex">
+    <aside
+      className={cn(
+        "hidden shrink-0 flex-col overflow-hidden bg-sidebar transition-[width,border-color] duration-200 md:flex",
+        collapsed ? "w-0 border-r-0" : "w-[248px] border-r border-border",
+      )}
+      aria-hidden={collapsed}
+    >
       {/* Brand */}
       <div className="flex h-14 items-center justify-between px-4">
         <div className="flex items-center gap-1.5">
@@ -415,6 +471,8 @@ function Sidebar({
         <button
           type="button"
           aria-label="Ẩn thanh bên"
+          title="Ẩn thanh bên (Ctrl+B)"
+          onClick={onToggle}
           className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         >
           <IconLayoutSidebar size={16} stroke={1.75} />
