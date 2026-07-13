@@ -407,6 +407,8 @@ function Sidebar({
   onSearch,
   onSelect,
   onNewChat,
+  collapsed,
+  onToggle,
 }: {
   grouped: Record<TimeGroup, Conversation[]>;
   activeId: string | null;
@@ -414,6 +416,8 @@ function Sidebar({
   onSearch: (v: string) => void;
   onSelect: (id: string) => void;
   onNewChat: () => void;
+  collapsed: boolean;
+  onToggle: () => void;
 }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const total = GROUP_ORDER.reduce((n, g) => n + grouped[g].length, 0);
