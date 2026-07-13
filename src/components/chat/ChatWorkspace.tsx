@@ -316,29 +316,37 @@ export function ChatWorkspace() {
       />
 
       <main className="flex min-w-0 flex-1 flex-col">
-        <Header
-          agent={headerAgent}
-          locked={agentLocked}
-          onChangeAgent={handleChangeAgent}
-        />
         {active ? (
-          <ChatArea
-            conversation={active}
-            status={status}
-            onRegenerate={handleRegenerate}
-            onRetry={handleRetryMessage}
-          />
+          <>
+            <Header
+              agent={headerAgent}
+              locked={agentLocked}
+              onChangeAgent={handleChangeAgent}
+            />
+            <ChatArea
+              conversation={active}
+              status={status}
+              onRegenerate={handleRegenerate}
+              onRetry={handleRetryMessage}
+            />
+            <Composer
+              value={draft}
+              onChange={setDraft}
+              onSend={() => handleSend()}
+              onStop={handleStop}
+              status={status}
+              agentName={headerAgent.name}
+            />
+          </>
         ) : (
-          <EmptyState onSuggestion={(s) => setDraft(s)} />
+          <Home
+            userName="Trang Nguyen Huyen"
+            draft={draft}
+            onDraftChange={setDraft}
+            onSend={() => handleSend()}
+            status={status}
+          />
         )}
-        <Composer
-          value={draft}
-          onChange={setDraft}
-          onSend={() => handleSend()}
-          onStop={handleStop}
-          status={status}
-          agentName={headerAgent.name}
-        />
       </main>
     </div>
   );
