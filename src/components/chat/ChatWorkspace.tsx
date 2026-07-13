@@ -1,20 +1,36 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   IconAlertTriangle,
+  IconApps,
   IconArrowDown,
+  IconArrowUp,
+  IconBell,
+  IconChartBar,
   IconCheck,
   IconChevronDown,
+  IconClipboardList,
+  IconCode,
   IconCopy,
   IconDots,
+  IconEye,
+  IconFileText,
+  IconFolder,
+  IconMail,
   IconMessages,
+  IconMicrophone,
   IconPaperclip,
+  IconPencilPlus,
   IconPlayerStop,
+  IconPlug,
   IconPlus,
   IconRefresh,
   IconRobot,
   IconSearch,
+  IconSelector,
   IconSend,
-  IconSparkles,
+  IconLayoutSidebar,
+  IconTerminal2,
+  IconX,
 } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
 import { formatTime, groupByDate, type TimeGroup } from "@/lib/format";
@@ -300,29 +316,37 @@ export function ChatWorkspace() {
       />
 
       <main className="flex min-w-0 flex-1 flex-col">
-        <Header
-          agent={headerAgent}
-          locked={agentLocked}
-          onChangeAgent={handleChangeAgent}
-        />
         {active ? (
-          <ChatArea
-            conversation={active}
-            status={status}
-            onRegenerate={handleRegenerate}
-            onRetry={handleRetryMessage}
-          />
+          <>
+            <Header
+              agent={headerAgent}
+              locked={agentLocked}
+              onChangeAgent={handleChangeAgent}
+            />
+            <ChatArea
+              conversation={active}
+              status={status}
+              onRegenerate={handleRegenerate}
+              onRetry={handleRetryMessage}
+            />
+            <Composer
+              value={draft}
+              onChange={setDraft}
+              onSend={() => handleSend()}
+              onStop={handleStop}
+              status={status}
+              agentName={headerAgent.name}
+            />
+          </>
         ) : (
-          <EmptyState onSuggestion={(s) => setDraft(s)} />
+          <Home
+            userName="Trang Nguyen Huyen"
+            draft={draft}
+            onDraftChange={setDraft}
+            onSend={() => handleSend()}
+            status={status}
+          />
         )}
-        <Composer
-          value={draft}
-          onChange={setDraft}
-          onSend={() => handleSend()}
-          onStop={handleStop}
-          status={status}
-          agentName={headerAgent.name}
-        />
       </main>
     </div>
   );
@@ -345,53 +369,102 @@ function Sidebar({
   onSelect: (id: string) => void;
   onNewChat: () => void;
 }) {
+  const [searchOpen, setSearchOpen] = useState(false);
   const total = GROUP_ORDER.reduce((n, g) => n + grouped[g].length, 0);
-  return (
-    <aside className="hidden w-72 shrink-0 flex-col border-r border-border bg-sidebar md:flex">
-      <div className="flex items-center gap-2 px-4 py-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
-          <IconSparkles size={18} stroke={1.75} />
-        </div>
-        <div className="min-w-0">
-          <div className="text-sm font-semibold leading-tight">FPT.AI</div>
-          <div className="text-xs text-muted-foreground">Agent Workspace</div>
-        </div>
-      </div>
+  const isHome = activeId === null;
 
-      <div className="px-3">
+  const primary = [
+    {
+      key: "new",
+      label: "Trò chuyện mới",
+      icon: IconPencilPlus,
+      shortcut: ["Ctrl", "⇧", "O"],
+      active: isHome,
+      onClick: onNewChat,
+    },
+    {
+      key: "search",
+      label: "Tìm kiếm",
+      icon: IconSearch,
+      shortcut: ["Ctrl", "K"],
+      active: false,
+      onClick: () => setSearchOpen((v) => !v),
+    },
+  ];
+
+  const secondary = [
+    { key: "projects", label: "Dự án", icon: IconFolder },
+    { key: "market", label: "Chợ Agent", icon: IconApps },
+    { key: "artifacts", label: "Artifacts", icon: IconFileText },
+    { key: "connections", label: "Kết nối", icon: IconPlug },
+    { key: "console", label: "Xây trong Console", icon: IconTerminal2 },
+  ];
+
+  return (
+    <aside className="hidden w-[248px] shrink-0 flex-col border-r border-border bg-sidebar md:flex">
+      {/* Brand */}
+      <div className="flex h-14 items-center justify-between px-4">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[17px] font-bold tracking-tight text-foreground">
+            FPT
+          </span>
+          <span className="flex h-4 w-4 items-center justify-center rounded-[3px] bg-primary text-[9px] font-bold text-primary-foreground">
+            .Ai
+          </span>
+        </div>
         <button
           type="button"
-          onClick={onNewChat}
-          className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow-xs transition-colors hover:bg-[var(--color-primary-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar"
+          aria-label="Ẩn thanh bên"
+          className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         >
-          <IconPlus size={16} stroke={2} />
-          New chat
+          <IconLayoutSidebar size={16} stroke={1.75} />
         </button>
       </div>
 
-      <div className="px-3 pt-3">
-        <label className="flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-3 focus-within:border-primary focus-within:ring-2 focus-within:ring-ring/20">
-          <IconSearch size={16} className="text-muted-foreground" stroke={2} />
-          <input
-            value={search}
-            onChange={(e) => onSearch(e.target.value)}
-            placeholder="Search conversations"
-            className="min-w-0 flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
-          />
-        </label>
+      {/* Primary nav */}
+      <div className="px-2">
+        {primary.map(({ key, ...item }) => (
+          <SidebarItem key={key} {...item} />
+        ))}
       </div>
 
-      <nav className="mt-4 flex-1 overflow-y-auto px-2 pb-4">
-        {total === 0 ? (
-          <div className="px-3 py-8 text-center text-xs text-muted-foreground">
-            No conversations match &ldquo;{search}&rdquo;.
-          </div>
-        ) : (
+      <div className="mt-1 h-px bg-border/60 mx-3" />
+
+      <div className="px-2 pt-1">
+        {secondary.map(({ key, ...item }) => (
+          <SidebarItem key={key} {...item} />
+        ))}
+      </div>
+
+      {/* Inline search + recent history */}
+      {searchOpen && (
+        <div className="px-3 pt-3">
+          <label className="flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-3 focus-within:border-primary focus-within:ring-2 focus-within:ring-ring/20">
+            <IconSearch size={14} className="text-muted-foreground" stroke={2} />
+            <input
+              value={search}
+              onChange={(e) => onSearch(e.target.value)}
+              placeholder="Tìm hội thoại"
+              autoFocus
+              className="min-w-0 flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
+            />
+          </label>
+        </div>
+      )}
+
+      <nav className="mt-3 flex-1 overflow-y-auto px-2 pb-3">
+        {total === 0 ? null : (
           GROUP_ORDER.map((group) =>
             grouped[group].length ? (
-              <div key={group} className="mb-4">
-                <div className="px-3 pb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                  {group}
+              <div key={group} className="mb-3">
+                <div className="px-3 pb-1 pt-2 text-[11px] font-medium text-muted-foreground">
+                  {group === "Today"
+                    ? "Hôm nay"
+                    : group === "Yesterday"
+                      ? "Hôm qua"
+                      : group === "Last 7 days"
+                        ? "7 ngày qua"
+                        : "Cũ hơn"}
                 </div>
                 <ul className="flex flex-col gap-0.5">
                   {grouped[group].map((c) => {
@@ -402,20 +475,12 @@ function Sidebar({
                           type="button"
                           onClick={() => onSelect(c.id)}
                           className={cn(
-                            "group flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors",
+                            "flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-[13px] transition-colors",
                             isActive
                               ? "bg-accent text-accent-foreground"
-                              : "text-foreground hover:bg-accent/60",
+                              : "text-foreground/80 hover:bg-accent/60",
                           )}
                         >
-                          <IconMessages
-                            size={16}
-                            stroke={1.75}
-                            className={cn(
-                              "shrink-0",
-                              isActive ? "text-primary" : "text-muted-foreground",
-                            )}
-                          />
                           <span className="truncate">{c.title}</span>
                         </button>
                       </li>
@@ -428,13 +493,83 @@ function Sidebar({
         )}
       </nav>
 
-      <div className="border-t border-border px-4 py-3">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <div className="h-2 w-2 rounded-full bg-success" />
-          <span>All systems operational</span>
+      {/* User */}
+      <div className="border-t border-border px-2 py-2">
+        <div className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-accent/60">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-[11px] font-semibold text-secondary-foreground">
+            TH
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[13px] font-medium leading-tight text-foreground">
+              Trang Nguyen Huyen
+            </div>
+            <div className="truncate text-[11px] text-muted-foreground">
+              Trang Nguyen Huyen …
+            </div>
+          </div>
+          <button
+            type="button"
+            aria-label="Đổi tài khoản"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-background hover:text-foreground"
+          >
+            <IconSelector size={14} stroke={1.75} />
+          </button>
+          <button
+            type="button"
+            aria-label="Thông báo"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-background hover:text-foreground"
+          >
+            <IconBell size={14} stroke={1.75} />
+          </button>
         </div>
       </div>
     </aside>
+  );
+}
+
+function SidebarItem({
+  label,
+  icon: Icon,
+  shortcut,
+  active,
+  onClick,
+}: {
+  label: string;
+  icon: typeof IconSearch;
+  shortcut?: string[];
+  active?: boolean;
+  onClick?: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "group flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-[13px] transition-colors",
+        active
+          ? "bg-background font-semibold text-foreground shadow-xs"
+          : "text-foreground/80 hover:bg-accent/60",
+      )}
+    >
+      <Icon
+        size={17}
+        stroke={1.75}
+        className={cn(active ? "text-foreground" : "text-muted-foreground")}
+      />
+      <span className="flex-1 truncate">{label}</span>
+      {shortcut && (
+        <span className="flex items-center gap-0.5">
+          {shortcut.map((k) => (
+            <kbd
+              key={k}
+              className="flex h-[18px] min-w-[18px] items-center justify-center rounded border border-border bg-background px-1 text-[10px] font-medium text-muted-foreground"
+            >
+              {k}
+            </kbd>
+          ))}
+        </span>
+      )}
+    </button>
   );
 }
 
@@ -971,48 +1106,233 @@ function Composer({
   );
 }
 
-/* ---------- Empty state ------------------------------------------------ */
+/* ---------- Home ------------------------------------------------------ */
 
-function EmptyState({ onSuggestion }: { onSuggestion: (v: string) => void }) {
+const QUICK_ACTIONS = [
+  { label: "Tổng hợp báo cáo", icon: IconChartBar, tint: "text-rose-500" },
+  { label: "Soạn email", icon: IconMail, tint: "text-emerald-500" },
+  { label: "Tìm tài liệu", icon: IconFileText, tint: "text-amber-500" },
+  { label: "Tạo Agent", icon: IconRobot, tint: "text-violet-500" },
+  { label: "Viết code", icon: IconCode, tint: "text-sky-500" },
+];
+
+const PENDING_TASKS = [
+  {
+    id: "t1",
+    title: "Cấp laptop — Nguyễn Hoàng Minh",
+    agent: "HR Onboarding Agent",
+    time: "09:30",
+    tags: ["MacBook Pro 14", "1 máy"],
+  },
+  {
+    id: "t2",
+    title: "Gửi email chào mừng & cấp thiết bị — Kiều Trang",
+    agent: "HR Onboarding Agent",
+    time: "08:48",
+    tags: [],
+  },
+];
+
+function greeting() {
+  const h = new Date().getHours();
+  if (h < 11) return "Chào buổi sáng";
+  if (h < 14) return "Chào buổi trưa";
+  if (h < 18) return "Chào buổi chiều";
+  return "Chào buổi tối";
+}
+
+function Home({
+  userName,
+  draft,
+  onDraftChange,
+  onSend,
+  status,
+}: {
+  userName: string;
+  draft: string;
+  onDraftChange: (v: string) => void;
+  onSend: () => void;
+  status: ChatStatus;
+}) {
+  const taRef = useRef<HTMLTextAreaElement>(null);
+  const canSend = draft.trim().length > 0 && status === "idle";
+
+  useEffect(() => {
+    const el = taRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 200) + "px";
+  }, [draft]);
+
+  const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      if (canSend) onSend();
+    }
+  };
+
   return (
-    <div className="flex flex-1 items-center justify-center overflow-y-auto px-6 py-12">
-      <div className="mx-auto max-w-2xl text-center">
-        <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-          <IconRobot size={30} stroke={1.75} />
-        </div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          Onboard with confidence.
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Ask about your first 30 days — benefits, leave policy, equipment,
-          buddy program. HR Onboarding answers with the current policy for your
-          team.
-        </p>
-
-        <div className="mx-auto mt-6 inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground">
-          <IconRobot size={14} stroke={1.75} className="text-primary" />
-          <span>
-            Assigned agent:{" "}
-            <span className="font-medium text-foreground">{HR_AGENT.name}</span>
-          </span>
+    <div className="flex flex-1 flex-col overflow-y-auto">
+      <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-6 pt-16 pb-10">
+        {/* Brand mark */}
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-border bg-card shadow-xs">
+          <svg viewBox="0 0 32 32" className="h-7 w-7 text-primary" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="16" cy="16" r="3" fill="currentColor" />
+            <circle cx="6" cy="8" r="2.2" fill="currentColor" />
+            <circle cx="26" cy="8" r="2.2" fill="currentColor" />
+            <circle cx="6" cy="24" r="2.2" fill="currentColor" />
+            <circle cx="26" cy="24" r="2.2" fill="currentColor" />
+            <line x1="16" y1="16" x2="6" y2="8" />
+            <line x1="16" y1="16" x2="26" y2="8" />
+            <line x1="16" y1="16" x2="6" y2="24" />
+            <line x1="16" y1="16" x2="26" y2="24" />
+          </svg>
         </div>
 
-        <div className="mt-8 grid gap-2 sm:grid-cols-2">
-          {suggestions.map((s) => (
+        {/* Greeting */}
+        <div className="mt-5 text-center">
+          <p className="text-[15px] text-foreground/80">
+            {greeting()}, <span className="font-medium">{userName}</span>{" "}
+            <span aria-hidden>👋</span>
+          </p>
+          <h1 className="mt-2 text-[32px] font-semibold leading-tight tracking-tight text-foreground">
+            Hôm nay bạn muốn{" "}
+            <span className="bg-gradient-to-r from-primary via-indigo-500 to-fuchsia-500 bg-clip-text text-transparent">
+              hoàn thành điều gì?
+            </span>
+          </h1>
+        </div>
+
+        {/* Hero composer */}
+        <div className="mt-8 rounded-2xl border border-border bg-card px-4 pt-4 pb-2 shadow-sm focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-ring/15">
+          <textarea
+            ref={taRef}
+            rows={2}
+            value={draft}
+            onChange={(e) => onDraftChange(e.target.value)}
+            onKeyDown={handleKey}
+            placeholder="Hỏi bất cứ điều gì hoặc giao việc cho Agent..."
+            className="block w-full resize-none bg-transparent text-[15px] leading-relaxed text-foreground placeholder:text-muted-foreground/80 focus:outline-none"
+          />
+          <div className="mt-2 flex items-center justify-between">
             <button
-              key={s}
               type="button"
-              onClick={() => onSuggestion(s)}
-              className="rounded-lg border border-border bg-card p-3 text-left text-sm text-foreground shadow-xs transition-colors hover:border-primary/40 hover:bg-accent"
+              aria-label="Đính kèm"
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             >
-              {s}
+              <IconPlus size={16} stroke={2} />
+            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                aria-label="Ghi âm"
+                className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              >
+                <IconMicrophone size={16} stroke={1.75} />
+              </button>
+              <button
+                type="button"
+                onClick={onSend}
+                disabled={!canSend}
+                aria-label="Gửi"
+                className={cn(
+                  "flex h-8 w-8 items-center justify-center rounded-full transition-colors",
+                  canSend
+                    ? "bg-primary text-primary-foreground hover:bg-[var(--color-primary-hover)]"
+                    : "bg-secondary text-muted-foreground",
+                )}
+              >
+                <IconArrowUp size={16} stroke={2.25} />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Quick actions */}
+        <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+          {QUICK_ACTIONS.map((a) => (
+            <button
+              key={a.label}
+              type="button"
+              onClick={() => onDraftChange(a.label + ": ")}
+              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3.5 py-1.5 text-[13px] text-foreground/85 shadow-xs transition-colors hover:border-primary/30 hover:bg-accent"
+            >
+              <a.icon size={14} stroke={1.75} className={a.tint} />
+              {a.label}
             </button>
           ))}
         </div>
 
-        <p className="mt-6 text-[11px] text-muted-foreground">
-          Tip: type <code className="rounded bg-muted px-1 py-0.5">simulate error</code> to preview the failed-response state.
-        </p>
+        {/* Pending tasks */}
+        <div className="mt-10">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-[14px] font-medium text-foreground">
+              <IconClipboardList size={16} stroke={1.75} className="text-primary" />
+              Cần bạn xử lý
+              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary/10 px-1.5 text-[11px] font-semibold text-primary">
+                {PENDING_TASKS.length}
+              </span>
+            </div>
+            <button
+              type="button"
+              className="text-[12px] font-medium text-muted-foreground hover:text-foreground"
+            >
+              Xem tất cả · {PENDING_TASKS.length} ›
+            </button>
+          </div>
+
+          <ul className="flex flex-col gap-2">
+            {PENDING_TASKS.map((t) => (
+              <li
+                key={t.id}
+                className="flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-2.5 shadow-xs transition-colors hover:border-primary/30"
+              >
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-muted-foreground">
+                  <IconFileText size={16} stroke={1.75} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[13px] font-medium text-foreground">
+                    {t.title}
+                  </div>
+                  <div className="mt-0.5 flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
+                    <span className="text-primary/80">{t.agent}</span>
+                    <span>·</span>
+                    <span>{t.time}</span>
+                    {t.tags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="ml-1 rounded-md bg-secondary px-1.5 py-0.5 text-[10.5px] text-secondary-foreground"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="inline-flex h-8 items-center gap-1 rounded-lg border border-border bg-background px-2.5 text-[12px] font-medium text-foreground/80 hover:bg-accent"
+                >
+                  <IconEye size={13} stroke={1.75} />
+                  Xem
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex h-8 items-center gap-1 rounded-lg bg-primary px-2.5 text-[12px] font-medium text-primary-foreground hover:bg-[var(--color-primary-hover)]"
+                >
+                  <IconCheck size={13} stroke={2} />
+                  Phê duyệt
+                </button>
+                <button
+                  type="button"
+                  aria-label="Bỏ qua"
+                  className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+                >
+                  <IconX size={14} stroke={2} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
     </div>
   );
