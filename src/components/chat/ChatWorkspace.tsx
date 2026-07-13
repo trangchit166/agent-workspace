@@ -602,19 +602,24 @@ function SidebarItem({
   shortcut,
   active,
   onClick,
+  collapsed,
 }: {
   label: string;
   icon: typeof IconSearch;
   shortcut?: string[];
   active?: boolean;
   onClick?: () => void;
+  collapsed?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      title={collapsed ? label : undefined}
+      aria-label={collapsed ? label : undefined}
       className={cn(
-        "group flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-[13px] transition-colors",
+        "group flex w-full items-center rounded-md text-left text-[13px] transition-colors",
+        collapsed ? "h-9 justify-center px-0" : "gap-2.5 px-3 py-2",
         active
           ? "bg-background font-semibold text-foreground shadow-xs"
           : "text-foreground/80 hover:bg-accent/60",
@@ -625,18 +630,22 @@ function SidebarItem({
         stroke={1.75}
         className={cn(active ? "text-foreground" : "text-muted-foreground")}
       />
-      <span className="flex-1 truncate">{label}</span>
-      {shortcut && (
-        <span className="flex items-center gap-0.5">
-          {shortcut.map((k) => (
-            <kbd
-              key={k}
-              className="flex h-[18px] min-w-[18px] items-center justify-center rounded border border-border bg-background px-1 text-[10px] font-medium text-muted-foreground"
-            >
-              {k}
-            </kbd>
-          ))}
-        </span>
+      {!collapsed && (
+        <>
+          <span className="flex-1 truncate">{label}</span>
+          {shortcut && (
+            <span className="flex items-center gap-0.5">
+              {shortcut.map((k) => (
+                <kbd
+                  key={k}
+                  className="flex h-[18px] min-w-[18px] items-center justify-center rounded border border-border bg-background px-1 text-[10px] font-medium text-muted-foreground"
+                >
+                  {k}
+                </kbd>
+              ))}
+            </span>
+          )}
+        </>
       )}
     </button>
   );
