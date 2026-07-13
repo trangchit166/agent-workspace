@@ -411,7 +411,7 @@ function Sidebar({
 }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const total = GROUP_ORDER.reduce((n, g) => n + grouped[g].length, 0);
-  const isHome = activeId === null;
+  void activeId;
 
   const searchItem = {
     key: "search",
