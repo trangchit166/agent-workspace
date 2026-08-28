@@ -100,7 +100,7 @@ export function WorkspaceSidebar({
   return (
     <aside
       className={cn(
-        "hidden shrink-0 flex-col overflow-hidden border-r border-border/70 bg-sidebar transition-[width] duration-200 md:flex",
+        "hidden shrink-0 flex-col overflow-hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] duration-200 md:flex",
         collapsed ? "w-14" : "w-[288px]",
       )}
     >
@@ -112,7 +112,7 @@ export function WorkspaceSidebar({
         )}
       >
         {collapsed ? (
-          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-[9px] font-bold text-primary-foreground">
+          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-sidebar-primary text-[9px] font-bold text-sidebar-primary-foreground">
             .Ai
           </span>
         ) : (
@@ -129,7 +129,7 @@ export function WorkspaceSidebar({
             aria-label="Tìm kiếm"
             title="Tìm kiếm hội thoại"
             onClick={() => setSearchOpen((v) => !v)}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            className="flex h-8 w-8 items-center justify-center rounded-md text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           >
             <IconSearch size={18} stroke={1.75} />
           </button>
@@ -138,51 +138,38 @@ export function WorkspaceSidebar({
             aria-label={collapsed ? "Hiện thanh bên" : "Ẩn thanh bên"}
             title={`${collapsed ? "Hiện" : "Ẩn"} thanh bên (Ctrl+B)`}
             onClick={onToggle}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            className="flex h-8 w-8 items-center justify-center rounded-md text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           >
             <IconLayoutSidebar size={18} stroke={1.75} />
           </button>
         </div>
       </div>
 
-      {/* Primary CTA — Trò chuyện mới */}
-      <div className={cn("pt-1", collapsed ? "px-1.5" : "px-3")}>
-        <button
-          type="button"
+      {/* Điều hướng — mọi mục dùng chung một kiểu (SidebarItem) */}
+      <nav className={cn("pt-1", collapsed ? "px-1.5" : "px-3")}>
+        <SidebarItem
+          label="Trò chuyện mới"
+          icon={IconEdit}
+          active={nav === "chat" && !activeId}
           onClick={onNewChat}
-          title={collapsed ? "Trò chuyện mới" : undefined}
-          aria-label={collapsed ? "Trò chuyện mới" : undefined}
-          className={cn(
-            "flex w-full items-center rounded-lg text-[14px] font-medium transition-colors",
-            nav === "chat" && !activeId
-              ? "bg-primary/10 text-primary hover:bg-primary/15"
-              : "text-foreground/80 hover:bg-accent",
-            collapsed ? "h-10 justify-center px-0" : "h-10 gap-3 px-3",
-          )}
-        >
-          <IconEdit size={19} stroke={1.75} />
-          {!collapsed && <span className="flex-1 text-left">Trò chuyện mới</span>}
-        </button>
-      </div>
-
-      {/* Secondary nav */}
-      <div className={cn("pt-1", collapsed ? "px-1.5" : "px-3")}>
+          collapsed={collapsed}
+        />
         {secondary.map(({ key, ...item }) => (
           <SidebarItem key={key} {...item} collapsed={collapsed} />
         ))}
-      </div>
+      </nav>
 
       {/* Inline search */}
       {!collapsed && searchOpen && (
         <div className="px-3 pt-3">
-          <label className="flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-3 focus-within:border-primary focus-within:ring-2 focus-within:ring-ring/20">
+          <label className="flex h-9 items-center gap-2 rounded-md border border-sidebar-border bg-background px-3 focus-within:border-sidebar-ring focus-within:ring-[3px] focus-within:ring-sidebar-ring/50">
             <IconSearch size={14} className="text-muted-foreground" stroke={2} />
             <input
               value={search}
               onChange={(e) => onSearch(e.target.value)}
               placeholder="Tìm hội thoại"
               autoFocus
-              className="min-w-0 flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
+              className="min-w-0 flex-1 bg-transparent text-sm text-sidebar-foreground placeholder:text-sidebar-foreground/50 focus:outline-none"
             />
           </label>
         </div>
@@ -192,7 +179,7 @@ export function WorkspaceSidebar({
         <nav className="mt-5 flex-1 overflow-y-auto px-3 pb-3">
           {conversations.length > 0 && (
             <>
-              <div className="px-3 pb-2 text-[11.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+              <div className="px-3 pb-2 text-[11.5px] font-semibold uppercase tracking-[0.08em] text-sidebar-foreground/60">
                 Cuộc trò chuyện
               </div>
               <ul className="flex flex-col gap-0.5">
@@ -204,10 +191,10 @@ export function WorkspaceSidebar({
                         type="button"
                         onClick={() => onSelect(c.id)}
                         className={cn(
-                          "flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-[14px] transition-colors",
+                          "flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-[14px] transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-sidebar-ring/50",
                           isActive
-                            ? "bg-accent font-medium text-foreground"
-                            : "text-foreground/75 hover:bg-accent",
+                            ? "bg-sidebar-primary/10 font-medium text-sidebar-primary"
+                            : "text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                         )}
                       >
                         <span className="truncate">{c.title}</span>
@@ -228,36 +215,36 @@ export function WorkspaceSidebar({
         {collapsed ? (
           <div className="flex justify-center">
             <div
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground"
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-sidebar-primary text-[11px] font-semibold text-sidebar-primary-foreground"
               title={USER_NAME}
             >
               TH
             </div>
           </div>
         ) : (
-          <div className="flex items-center gap-2 rounded-xl px-1 py-2 hover:bg-accent">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-[11.5px] font-semibold text-primary-foreground">
+          <div className="flex items-center gap-2 rounded-lg px-1 py-2 hover:bg-sidebar-accent">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sidebar-primary text-[11.5px] font-semibold text-sidebar-primary-foreground">
               TH
             </div>
             <div className="min-w-0 flex-1">
-              <div className="truncate text-[13px] font-semibold leading-tight text-foreground">
+              <div className="truncate text-[13px] font-semibold leading-tight text-sidebar-foreground">
                 {USER_NAME}
               </div>
-              <div className="truncate text-[11.5px] text-muted-foreground">
+              <div className="truncate text-[11.5px] text-sidebar-foreground/60">
                 {USER_SUBTITLE}
               </div>
             </div>
             <button
               type="button"
               aria-label="Đổi tài khoản"
-              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
             >
               <IconSelector size={15} stroke={1.75} />
             </button>
             <button
               type="button"
               aria-label="Thông báo"
-              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
             >
               <IconBell size={15} stroke={1.75} />
             </button>
@@ -293,23 +280,27 @@ function SidebarItem({
       title={collapsed ? label : undefined}
       aria-label={collapsed ? label : undefined}
       className={cn(
-        "group flex w-full items-center rounded-lg text-left text-[14px] transition-colors",
+        "group flex w-full items-center rounded-lg text-left text-[14px] transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-sidebar-ring/50",
         collapsed ? "h-10 justify-center px-0" : "h-10 gap-3 px-3",
         active
-          ? "bg-accent font-semibold text-foreground"
-          : "text-foreground/80 hover:bg-accent",
+          ? "bg-sidebar-primary/10 font-medium text-sidebar-primary hover:bg-sidebar-primary/15"
+          : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
       )}
+      aria-current={active ? "page" : undefined}
     >
       <Icon
         size={19}
         stroke={1.75}
-        className={cn(active ? "text-foreground" : "text-muted-foreground")}
+        className={cn(
+          "shrink-0",
+          active ? "text-sidebar-primary" : "text-sidebar-foreground/60",
+        )}
       />
       {!collapsed && (
         <>
           <span className="flex-1 truncate">{label}</span>
           {typeof badge === "number" && badge > 0 && (
-            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-semibold text-primary-foreground">
+            <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-sidebar-primary px-1.5 text-[11px] font-semibold tabular-nums text-sidebar-primary-foreground">
               {badge}
             </span>
           )}
@@ -318,7 +309,7 @@ function SidebarItem({
               {shortcut.map((k) => (
                 <kbd
                   key={k}
-                  className="flex h-[18px] min-w-[18px] items-center justify-center rounded border border-border bg-background px-1 text-[10px] font-medium text-muted-foreground"
+                  className="flex h-[18px] min-w-[18px] items-center justify-center rounded-sm border border-sidebar-border bg-background px-1 text-[10px] font-medium text-sidebar-foreground/60"
                 >
                   {k}
                 </kbd>
