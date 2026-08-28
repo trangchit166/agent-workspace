@@ -347,14 +347,16 @@ export function ChatWorkspace() {
       />
 
       <main className="relative flex min-w-0 flex-1 flex-col">
-        {/* Quay lại nền tảng cũ */}
-        <button
-          type="button"
-          className="absolute right-6 top-5 z-10 inline-flex h-9 items-center gap-2 rounded-full bg-[#F2F5F9] px-4 text-[13px] font-medium text-slate-500 transition-colors hover:bg-[#E8ECF3] hover:text-slate-700"
-        >
-          <IconRefresh size={16} stroke={1.75} />
-          Chuyển về nền tảng cũ
-        </button>
+        {/* Quay lại nền tảng cũ — chỉ hiện ở màn hình chào, tránh đè lên Header */}
+        {!active && (
+          <button
+            type="button"
+            className="absolute right-6 top-5 z-10 inline-flex h-9 items-center gap-2 rounded-full bg-[#F2F5F9] px-4 text-[13px] font-medium text-slate-500 transition-colors hover:bg-[#E8ECF3] hover:text-slate-700"
+          >
+            <IconRefresh size={16} stroke={1.75} />
+            Chuyển về nền tảng cũ
+          </button>
+        )}
 
         {active ? (
           <>
