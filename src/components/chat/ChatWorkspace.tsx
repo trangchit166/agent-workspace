@@ -7,6 +7,7 @@ import {
   IconBolt,
   IconBrowser,
   IconBuildingStore,
+  IconCamera,
   IconChartBar,
   IconCheck,
   IconChevronDown,
@@ -33,6 +34,7 @@ import {
   IconSelector,
   IconSend,
   IconStack2,
+  IconUpload,
   IconLayoutSidebar,
   IconX,
 } from "@tabler/icons-react";
@@ -1260,6 +1262,91 @@ function ModelGlyph() {
   );
 }
 
+/** Menu bật lên từ nút "+" của khung soạn thảo. */
+function AttachMenu() {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const items = [
+    {
+      key: "file",
+      label: "Thêm tệp hoặc ảnh",
+      icon: IconUpload,
+      onSelect: () => fileRef.current?.click(),
+    },
+    {
+      key: "screenshot",
+      label: "Chụp ảnh màn hình",
+      icon: IconCamera,
+      onSelect: () => undefined,
+    },
+  ];
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <input ref={fileRef} type="file" multiple className="hidden" />
+
+      <button
+        type="button"
+        aria-label="Thêm tệp"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          "flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:bg-accent hover:text-foreground",
+          open ? "bg-accent text-foreground" : "text-muted-foreground",
+        )}
+      >
+        <IconPlus size={20} stroke={1.75} />
+      </button>
+
+      {open && (
+        <div
+          role="menu"
+          className="absolute bottom-full left-0 z-20 mb-3 w-[264px] rounded-2xl border border-border bg-popover p-2 shadow-lg"
+        >
+          {items.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                item.onSelect();
+              }}
+              className="flex h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[14.5px] text-foreground transition-colors hover:bg-accent"
+            >
+              <item.icon
+                size={19}
+                stroke={1.75}
+                className="shrink-0 text-muted-foreground"
+              />
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Home({
   userName,
   draft,
@@ -1317,13 +1404,7 @@ function Home({
           />
           <div className="mt-3 flex items-center justify-between">
             <div className="flex items-center gap-1">
-              <button
-                type="button"
-                aria-label="Đính kèm"
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-              >
-                <IconPlus size={20} stroke={1.75} />
-              </button>
+              <AttachMenu />
               <button
                 type="button"
                 className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2 text-[14px] text-foreground/80 transition-colors hover:bg-accent"
