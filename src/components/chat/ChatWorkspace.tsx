@@ -10,6 +10,7 @@ import {
   IconChartBar,
   IconCheck,
   IconChevronDown,
+  IconClockPlay,
   IconCode,
   IconCopy,
   IconDots,
@@ -49,8 +50,11 @@ import {
   type StreamHandle,
 } from "@/lib/hr-onboarding-mock";
 import { loadState, saveState } from "@/lib/persistence";
+import { ScheduledTasks } from "@/components/chat/ScheduledTasks";
+import { SCHEDULED_TASKS } from "@/lib/scheduled-tasks-mock";
 
 type ChatStatus = "idle" | "waiting" | "streaming";
+type WorkspaceView = "chat" | "schedules";
 
 const USER_NAME = "Trang Nguyen Huyen";
 const USER_SUBTITLE = "Trang Nguyen Huyen Workspace";
@@ -73,6 +77,7 @@ export function ChatWorkspace() {
     initial?.activeId ?? null,
   );
   const [status, setStatus] = useState<ChatStatus>("idle");
+  const [view, setView] = useState<WorkspaceView>("chat");
   const [search, setSearch] = useState("");
   const [drafts, setDrafts] = useState<Record<string, string>>(
     initial?.drafts ?? {},
@@ -302,6 +307,7 @@ export function ChatWorkspace() {
     streamRef.current?.stop();
     setActiveId(null);
     setStatus("idle");
+    setView("chat");
   }, []);
 
   // Change the agent on the active conversation. Locked after the first
@@ -334,12 +340,16 @@ export function ChatWorkspace() {
       <Sidebar
         conversations={filtered}
         activeId={activeId}
+        view={view}
+        onOpenSchedules={() => setView("schedules")}
+        scheduleCount={SCHEDULED_TASKS.length}
         search={search}
         onSearch={setSearch}
         onSelect={(id) => {
           streamRef.current?.stop();
           setActiveId(id);
           setStatus("idle");
+          setView("chat");
         }}
         onNewChat={handleNewChat}
         collapsed={collapsed}
@@ -348,7 +358,7 @@ export function ChatWorkspace() {
 
       <main className="relative flex min-w-0 flex-1 flex-col">
         {/* Quay lại nền tảng cũ — chỉ hiện ở màn hình chào, tránh đè lên Header */}
-        {!active && (
+        {!active && view === "chat" && (
           <button
             type="button"
             className="absolute right-6 top-5 z-10 inline-flex h-9 items-center gap-2 rounded-full bg-[#F2F5F9] px-4 text-[13px] font-medium text-slate-500 transition-colors hover:bg-[#E8ECF3] hover:text-slate-700"
@@ -358,7 +368,9 @@ export function ChatWorkspace() {
           </button>
         )}
 
-        {active ? (
+        {view === "schedules" ? (
+          <ScheduledTasks />
+        ) : active ? (
           <>
             <Header
               agent={headerAgent}
@@ -399,6 +411,9 @@ export function ChatWorkspace() {
 function Sidebar({
   conversations,
   activeId,
+  view,
+  onOpenSchedules,
+  scheduleCount,
   search,
   onSearch,
   onSelect,
@@ -408,6 +423,9 @@ function Sidebar({
 }: {
   conversations: Conversation[];
   activeId: string | null;
+  view: WorkspaceView;
+  onOpenSchedules: () => void;
+  scheduleCount: number;
   search: string;
   onSearch: (v: string) => void;
   onSelect: (id: string) => void;
@@ -421,6 +439,14 @@ function Sidebar({
     { key: "projects", label: "Dự án", icon: IconFolder },
     { key: "market", label: "Chợ Agent", icon: IconBuildingStore },
     { key: "artifacts", label: "Artifacts", icon: IconPackage },
+    {
+      key: "schedules",
+      label: "Tác vụ định kỳ",
+      icon: IconClockPlay,
+      badge: scheduleCount,
+      active: view === "schedules",
+      onClick: onOpenSchedules,
+    },
     { key: "connections", label: "Kết nối", icon: IconPlugConnected },
     { key: "mcp", label: "Xác thực MCP", icon: IconStack2 },
     { key: "console", label: "Xây trong Console", icon: IconLayoutGrid },
@@ -482,7 +508,10 @@ function Sidebar({
           title={collapsed ? "Trò chuyện mới" : undefined}
           aria-label={collapsed ? "Trò chuyện mới" : undefined}
           className={cn(
-            "flex w-full items-center rounded-lg bg-[#EFF1FC] text-[14px] font-medium text-primary transition-colors hover:bg-[#E4E8FA]",
+            "flex w-full items-center rounded-lg text-[14px] font-medium transition-colors",
+            view === "chat"
+              ? "bg-[#EFF1FC] text-primary hover:bg-[#E4E8FA]"
+              : "text-foreground/80 hover:bg-accent",
             collapsed ? "h-10 justify-center px-0" : "h-10 gap-3 px-3",
           )}
         >
@@ -599,6 +628,7 @@ function SidebarItem({
   label,
   icon: Icon,
   shortcut,
+  badge,
   active,
   onClick,
   collapsed,
@@ -606,6 +636,7 @@ function SidebarItem({
   label: string;
   icon: typeof IconSearch;
   shortcut?: string[];
+  badge?: number;
   active?: boolean;
   onClick?: () => void;
   collapsed?: boolean;
@@ -632,6 +663,11 @@ function SidebarItem({
       {!collapsed && (
         <>
           <span className="flex-1 truncate">{label}</span>
+          {typeof badge === "number" && badge > 0 && (
+            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-semibold text-primary-foreground">
+              {badge}
+            </span>
+          )}
           {shortcut && (
             <span className="flex items-center gap-0.5">
               {shortcut.map((k) => (
