@@ -1,39 +1,42 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   IconAlertTriangle,
-  IconApps,
   IconArrowDown,
   IconArrowUp,
   IconBell,
+  IconBolt,
+  IconBrowser,
+  IconBuildingStore,
   IconChartBar,
   IconCheck,
   IconChevronDown,
-  IconClipboardList,
   IconCode,
   IconCopy,
   IconDots,
+  IconEdit,
   IconEye,
   IconFileText,
   IconFolder,
+  IconFolderSearch,
+  IconLayoutGrid,
   IconMail,
-  IconMessages,
   IconMicrophone,
+  IconPackage,
   IconPaperclip,
-  IconPencilPlus,
   IconPlayerStop,
-  IconPlug,
+  IconPlugConnected,
   IconPlus,
   IconRefresh,
   IconRobot,
   IconSearch,
   IconSelector,
   IconSend,
+  IconStack2,
   IconLayoutSidebar,
-  IconTerminal2,
   IconX,
 } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
-import { formatTime, groupByDate, type TimeGroup } from "@/lib/format";
+import { formatTime } from "@/lib/format";
 import {
   AVAILABLE_AGENTS,
   HR_AGENT,
@@ -49,7 +52,8 @@ import { loadState, saveState } from "@/lib/persistence";
 
 type ChatStatus = "idle" | "waiting" | "streaming";
 
-const GROUP_ORDER: TimeGroup[] = ["Today", "Yesterday", "Last 7 days", "Older"];
+const USER_NAME = "Trang Nguyen Huyen";
+const USER_SUBTITLE = "Trang Nguyen Huyen Workspace";
 
 const suggestions = [
   "What's covered in my benefits package?",
@@ -311,22 +315,15 @@ export function ChatWorkspace() {
     [active, patchConversation],
   );
 
+  // Flat, most-recent-first conversation list (no date grouping).
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const list = q
       ? conversations.filter((c) => c.title.toLowerCase().includes(q))
       : conversations;
-    const grouped: Record<TimeGroup, Conversation[]> = {
-      Today: [],
-      Yesterday: [],
-      "Last 7 days": [],
-      Older: [],
-    };
-    for (const c of list) grouped[groupByDate(c.updatedAt)].push(c);
-    for (const g of GROUP_ORDER) {
-      grouped[g].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
-    }
-    return grouped;
+    return [...list].sort(
+      (a, b) => b.updatedAt.getTime() - a.updatedAt.getTime(),
+    );
   }, [conversations, search]);
 
   const headerAgent = active ? getAgent(active.agentId) : HR_AGENT;
@@ -335,7 +332,7 @@ export function ChatWorkspace() {
   return (
     <div className="flex h-screen w-full bg-background text-foreground">
       <Sidebar
-        grouped={filtered}
+        conversations={filtered}
         activeId={activeId}
         search={search}
         onSearch={setSearch}
@@ -350,7 +347,14 @@ export function ChatWorkspace() {
       />
 
       <main className="relative flex min-w-0 flex-1 flex-col">
-
+        {/* Quay lại nền tảng cũ */}
+        <button
+          type="button"
+          className="absolute right-6 top-5 z-10 inline-flex h-9 items-center gap-2 rounded-full bg-[#F2F5F9] px-4 text-[13px] font-medium text-slate-500 transition-colors hover:bg-[#E8ECF3] hover:text-slate-700"
+        >
+          <IconRefresh size={16} stroke={1.75} />
+          Chuyển về nền tảng cũ
+        </button>
 
         {active ? (
           <>
@@ -376,7 +380,7 @@ export function ChatWorkspace() {
           </>
         ) : (
           <Home
-            userName="Trang Nguyen Huyen"
+            userName={USER_NAME}
             draft={draft}
             onDraftChange={setDraft}
             onSend={() => handleSend()}
@@ -391,7 +395,7 @@ export function ChatWorkspace() {
 /* ---------- Sidebar ---------------------------------------------------- */
 
 function Sidebar({
-  grouped,
+  conversations,
   activeId,
   search,
   onSearch,
@@ -400,7 +404,7 @@ function Sidebar({
   collapsed,
   onToggle,
 }: {
-  grouped: Record<TimeGroup, Conversation[]>;
+  conversations: Conversation[];
   activeId: string | null;
   search: string;
   onSearch: (v: string) => void;
@@ -410,106 +414,83 @@ function Sidebar({
   onToggle: () => void;
 }) {
   const [searchOpen, setSearchOpen] = useState(false);
-  const total = GROUP_ORDER.reduce((n, g) => n + grouped[g].length, 0);
-
-  const searchItem = {
-    key: "search",
-    label: "Tìm kiếm",
-    icon: IconSearch,
-    shortcut: ["Ctrl", "K"],
-    active: false,
-    onClick: () => setSearchOpen((v) => !v),
-  };
 
   const secondary = [
     { key: "projects", label: "Dự án", icon: IconFolder },
-    { key: "market", label: "Chợ Agent", icon: IconApps },
-    { key: "artifacts", label: "Artifacts", icon: IconFileText },
-    { key: "connections", label: "Kết nối", icon: IconPlug },
-    { key: "console", label: "Xây trong Console", icon: IconTerminal2 },
+    { key: "market", label: "Chợ Agent", icon: IconBuildingStore },
+    { key: "artifacts", label: "Artifacts", icon: IconPackage },
+    { key: "connections", label: "Kết nối", icon: IconPlugConnected },
+    { key: "mcp", label: "Xác thực MCP", icon: IconStack2 },
+    { key: "console", label: "Xây trong Console", icon: IconLayoutGrid },
   ];
 
   return (
     <aside
       className={cn(
         "hidden shrink-0 flex-col overflow-hidden border-r border-border/70 bg-sidebar transition-[width] duration-200 md:flex",
-        collapsed ? "w-14" : "w-[260px]",
+        collapsed ? "w-14" : "w-[288px]",
       )}
     >
-      {/* Brand + collapse toggle */}
+      {/* Brand + search + collapse toggle */}
       <div
         className={cn(
-          "flex h-14 items-center px-3",
+          "flex h-16 items-center px-4",
           collapsed ? "flex-col justify-center gap-2 px-0" : "justify-between",
         )}
       >
-        <div className="flex items-center gap-1.5">
-          {!collapsed && (
-            <span className="text-[17px] font-bold tracking-tight text-foreground">
-              FPT
-            </span>
-          )}
-          <span className="flex h-5 w-5 items-center justify-center rounded-md bg-primary text-[9px] font-bold text-primary-foreground">
+        {collapsed ? (
+          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-[9px] font-bold text-primary-foreground">
             .Ai
           </span>
+        ) : (
+          <img
+            src="/fpt-ai-logo.png"
+            alt="FPT.AI"
+            className="h-7 w-auto select-none"
+            draggable={false}
+          />
+        )}
+        <div className={cn("flex items-center", collapsed ? "flex-col gap-1" : "gap-1")}>
+          <button
+            type="button"
+            aria-label="Tìm kiếm"
+            title="Tìm kiếm hội thoại"
+            onClick={() => setSearchOpen((v) => !v)}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            <IconSearch size={18} stroke={1.75} />
+          </button>
+          <button
+            type="button"
+            aria-label={collapsed ? "Hiện thanh bên" : "Ẩn thanh bên"}
+            title={`${collapsed ? "Hiện" : "Ẩn"} thanh bên (Ctrl+B)`}
+            onClick={onToggle}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            <IconLayoutSidebar size={18} stroke={1.75} />
+          </button>
         </div>
-        <button
-          type="button"
-          aria-label={collapsed ? "Hiện thanh bên" : "Ẩn thanh bên"}
-          title={`${collapsed ? "Hiện" : "Ẩn"} thanh bên (Ctrl+B)`}
-          onClick={onToggle}
-          className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-        >
-          <IconLayoutSidebar size={16} stroke={1.75} />
-        </button>
       </div>
 
       {/* Primary CTA — Trò chuyện mới */}
-      <div className={cn("pb-1", collapsed ? "px-1.5" : "px-3")}>
-        {collapsed ? (
-          <button
-            type="button"
-            onClick={onNewChat}
-            aria-label="Trò chuyện mới"
-            title="Trò chuyện mới"
-            className="flex h-10 w-full items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-xs transition-colors hover:bg-primary-hover"
-          >
-            <IconPencilPlus size={18} stroke={1.75} />
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={onNewChat}
-            className="flex h-10 w-full items-center gap-2.5 rounded-xl bg-primary px-3 text-[13px] font-medium text-primary-foreground shadow-xs transition-colors hover:bg-primary-hover"
-          >
-            <IconPencilPlus size={18} stroke={1.75} />
-            <span className="flex-1 text-left">Trò chuyện mới</span>
-            <span className="flex items-center gap-0.5">
-              {["Ctrl", "⇧", "O"].map((k) => (
-                <kbd
-                  key={k}
-                  className="flex h-[18px] min-w-[18px] items-center justify-center rounded border border-white/25 bg-white/10 px-1 text-[10px] font-medium text-primary-foreground/90"
-                >
-                  {k}
-                </kbd>
-              ))}
-            </span>
-          </button>
-        )}
-      </div>
-
-      {/* Search */}
-      <div className={cn(collapsed ? "px-1.5" : "px-3")}>
-        <SidebarItem {...searchItem} collapsed={collapsed} />
+      <div className={cn("pt-1", collapsed ? "px-1.5" : "px-3")}>
+        <button
+          type="button"
+          onClick={onNewChat}
+          title={collapsed ? "Trò chuyện mới" : undefined}
+          aria-label={collapsed ? "Trò chuyện mới" : undefined}
+          className={cn(
+            "flex w-full items-center rounded-lg bg-[#EFF1FC] text-[14px] font-medium text-primary transition-colors hover:bg-[#E4E8FA]",
+            collapsed ? "h-10 justify-center px-0" : "h-10 gap-3 px-3",
+          )}
+        >
+          <IconEdit size={19} stroke={1.75} />
+          {!collapsed && <span className="flex-1 text-left">Trò chuyện mới</span>}
+        </button>
       </div>
 
       {/* Secondary nav */}
-      <div className={cn("pt-3", collapsed ? "px-1.5" : "px-3")}>
-        {!collapsed && (
-          <div className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Điều hướng
-          </div>
-        )}
+      <div className={cn("pt-1", collapsed ? "px-1.5" : "px-3")}>
         {secondary.map(({ key, ...item }) => (
           <SidebarItem key={key} {...item} collapsed={collapsed} />
         ))}
@@ -532,87 +513,77 @@ function Sidebar({
       )}
 
       {!collapsed ? (
-        <nav className="mt-3 flex-1 overflow-y-auto px-3 pb-3">
-          {total === 0
-            ? null
-            : GROUP_ORDER.map((group) =>
-                grouped[group].length ? (
-                  <div key={group} className="mb-3">
-                    <div className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      {group === "Today"
-                        ? "Hôm nay"
-                        : group === "Yesterday"
-                          ? "Hôm qua"
-                          : group === "Last 7 days"
-                            ? "7 ngày qua"
-                            : "Cũ hơn"}
-                    </div>
-                    <ul className="flex flex-col gap-0.5">
-                      {grouped[group].map((c) => {
-                        const isActive = c.id === activeId;
-                        return (
-                          <li key={c.id}>
-                            <button
-                              type="button"
-                              onClick={() => onSelect(c.id)}
-                              className={cn(
-                                "flex h-8 w-full items-center gap-2 rounded-lg px-3 text-left text-[13px] transition-colors",
-                                isActive
-                                  ? "bg-accent font-semibold text-foreground"
-                                  : "text-foreground/80 hover:bg-accent",
-                              )}
-                            >
-                              <span className="truncate">{c.title}</span>
-                            </button>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-                ) : null,
-              )}
+        <nav className="mt-5 flex-1 overflow-y-auto px-3 pb-3">
+          {conversations.length > 0 && (
+            <>
+              <div className="px-3 pb-2 text-[11.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                Cuộc trò chuyện
+              </div>
+              <ul className="flex flex-col gap-0.5">
+                {conversations.map((c) => {
+                  const isActive = c.id === activeId;
+                  return (
+                    <li key={c.id}>
+                      <button
+                        type="button"
+                        onClick={() => onSelect(c.id)}
+                        className={cn(
+                          "flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-[14px] transition-colors",
+                          isActive
+                            ? "bg-accent font-medium text-foreground"
+                            : "text-foreground/75 hover:bg-accent",
+                        )}
+                      >
+                        <span className="truncate">{c.title}</span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
+          )}
         </nav>
       ) : (
         <div className="flex-1" />
       )}
 
       {/* User card */}
-      <div className={cn("border-t border-border/60 p-2", collapsed ? "px-1.5" : "px-3 py-3")}>
+      <div className={cn("p-2", collapsed ? "px-1.5" : "px-3 py-3")}>
         {collapsed ? (
           <div className="flex justify-center">
             <div
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary text-[11px] font-semibold text-secondary-foreground"
-              title="Trang Nguyen Huyen"
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground"
+              title={USER_NAME}
             >
               TH
             </div>
           </div>
         ) : (
-          <div className="flex items-center gap-2 rounded-xl px-2 py-2 hover:bg-accent">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary text-[11px] font-semibold text-secondary-foreground">
+          <div className="flex items-center gap-2 rounded-xl px-1 py-2 hover:bg-accent">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#4056E0] to-[#1B2B8F] text-[11.5px] font-semibold text-white">
               TH
             </div>
             <div className="min-w-0 flex-1">
-              <div className="truncate text-[13px] font-medium leading-tight text-foreground">
-                Trang Nguyen Huyen
+              <div className="truncate text-[13px] font-semibold leading-tight text-foreground">
+                {USER_NAME}
               </div>
-              <div className="truncate text-[11px] text-muted-foreground">
-                trang.nh@fpt.ai
+              <div className="truncate text-[11.5px] text-muted-foreground">
+                {USER_SUBTITLE}
               </div>
             </div>
             <button
               type="button"
               aria-label="Đổi tài khoản"
-              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
             >
-              <IconSelector size={14} stroke={1.75} />
+              <IconSelector size={15} stroke={1.75} />
             </button>
             <button
               type="button"
               aria-label="Thông báo"
-              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
             >
-              <IconBell size={14} stroke={1.75} />
+              <IconBell size={15} stroke={1.75} />
             </button>
           </div>
         )}
@@ -644,15 +615,15 @@ function SidebarItem({
       title={collapsed ? label : undefined}
       aria-label={collapsed ? label : undefined}
       className={cn(
-        "group flex w-full items-center rounded-lg text-left text-[13px] transition-colors",
-        collapsed ? "h-9 justify-center px-0" : "h-9 gap-2.5 px-3",
+        "group flex w-full items-center rounded-lg text-left text-[14px] transition-colors",
+        collapsed ? "h-10 justify-center px-0" : "h-10 gap-3 px-3",
         active
           ? "bg-accent font-semibold text-foreground"
           : "text-foreground/80 hover:bg-accent",
       )}
     >
       <Icon
-        size={18}
+        size={19}
         stroke={1.75}
         className={cn(active ? "text-foreground" : "text-muted-foreground")}
       />
@@ -1215,26 +1186,9 @@ function Composer({
 const QUICK_ACTIONS = [
   { label: "Tổng hợp báo cáo", icon: IconChartBar, tint: "text-rose-500" },
   { label: "Soạn email", icon: IconMail, tint: "text-emerald-500" },
-  { label: "Tìm tài liệu", icon: IconFileText, tint: "text-amber-500" },
-  { label: "Tạo Agent", icon: IconRobot, tint: "text-violet-500" },
-  { label: "Viết code", icon: IconCode, tint: "text-sky-500" },
-];
-
-const PENDING_TASKS = [
-  {
-    id: "t1",
-    title: "Cấp laptop — Nguyễn Hoàng Minh",
-    agent: "HR Onboarding Agent",
-    time: "09:30",
-    tags: ["MacBook Pro 14", "1 máy"],
-  },
-  {
-    id: "t2",
-    title: "Gửi email chào mừng & cấp thiết bị — Kiều Trang",
-    agent: "HR Onboarding Agent",
-    time: "08:48",
-    tags: [],
-  },
+  { label: "Tìm tài liệu", icon: IconFolderSearch, tint: "text-amber-500" },
+  { label: "Tạo website", icon: IconBrowser, tint: "text-sky-500" },
+  { label: "Viết code", icon: IconCode, tint: "text-violet-500" },
 ];
 
 function greeting() {
@@ -1243,6 +1197,29 @@ function greeting() {
   if (h < 14) return "Chào buổi trưa";
   if (h < 18) return "Chào buổi chiều";
   return "Chào buổi tối";
+}
+
+/** Small brand glyph used inside the model selector chip. */
+function ModelGlyph() {
+  return (
+    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary">
+      <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 text-white">
+        <g stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+          <line x1="11.5" y1="13" x2="13" y2="5.5" />
+          <line x1="11.5" y1="13" x2="21" y2="4" />
+          <line x1="11.5" y1="13" x2="3.5" y2="11.5" />
+          <line x1="11.5" y1="13" x2="19.5" y2="19.5" />
+        </g>
+        <g fill="currentColor">
+          <circle cx="11.5" cy="13" r="3.1" />
+          <circle cx="13" cy="5.5" r="2.3" />
+          <circle cx="21" cy="4" r="1.9" />
+          <circle cx="3.5" cy="11.5" r="2.1" />
+          <circle cx="19.5" cy="19.5" r="2.2" />
+        </g>
+      </svg>
+    </span>
+  );
 }
 
 function Home({
@@ -1277,62 +1254,66 @@ function Home({
 
   return (
     <div className="flex flex-1 flex-col overflow-y-auto">
-      <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-6 pt-16 pb-10">
-        {/* Brand mark */}
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-border bg-card shadow-xs">
-          <svg viewBox="0 0 32 32" className="h-7 w-7 text-primary" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="16" cy="16" r="3" fill="currentColor" />
-            <circle cx="6" cy="8" r="2.2" fill="currentColor" />
-            <circle cx="26" cy="8" r="2.2" fill="currentColor" />
-            <circle cx="6" cy="24" r="2.2" fill="currentColor" />
-            <circle cx="26" cy="24" r="2.2" fill="currentColor" />
-            <line x1="16" y1="16" x2="6" y2="8" />
-            <line x1="16" y1="16" x2="26" y2="8" />
-            <line x1="16" y1="16" x2="6" y2="24" />
-            <line x1="16" y1="16" x2="26" y2="24" />
-          </svg>
-        </div>
-
+      <div className="mx-auto flex w-full max-w-[816px] flex-1 flex-col justify-center px-6 pb-40 pt-16">
         {/* Greeting */}
-        <div className="mt-5 text-center">
-          <p className="text-[15px] text-foreground/80">
-            {greeting()}, <span className="font-medium">{userName}</span>{" "}
-            <span aria-hidden>👋</span>
+        <div className="text-center">
+          <p className="text-[17px] text-muted-foreground">
+            {greeting()}, {userName} <span aria-hidden>👋</span>
           </p>
-          <h1 className="mt-2 text-[32px] font-semibold leading-tight tracking-tight text-foreground">
-            Hôm nay bạn muốn{" "}
-            <span className="bg-gradient-to-r from-primary via-indigo-500 to-fuchsia-500 bg-clip-text text-transparent">
-              hoàn thành điều gì?
-            </span>
+          <h1 className="mt-2.5 text-[30px] font-semibold leading-tight tracking-tight text-[#030816]">
+            Chúng ta cùng{" "}
+            <span className="text-[#5644DE]">bắt đầu từ đâu nhỉ?</span>
           </h1>
         </div>
 
         {/* Hero composer */}
-        <div className="mt-8 rounded-2xl border border-border bg-card px-4 pt-4 pb-2 shadow-sm focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-ring/15">
+        <div className="mt-8 rounded-[20px] border border-border bg-card px-5 pb-3 pt-4 shadow-xs transition-colors focus-within:border-primary/40">
           <textarea
             ref={taRef}
-            rows={2}
+            rows={1}
             value={draft}
             onChange={(e) => onDraftChange(e.target.value)}
             onKeyDown={handleKey}
-            placeholder="Hỏi bất cứ điều gì hoặc giao việc cho Agent..."
-            className="block w-full resize-none bg-transparent text-[15px] leading-relaxed text-foreground placeholder:text-muted-foreground/80 focus:outline-none"
+            placeholder="Soạn giúp nội dung"
+            className="block w-full resize-none bg-transparent text-[16px] leading-relaxed text-foreground placeholder:text-muted-foreground/90 focus:outline-none"
           />
-          <div className="mt-2 flex items-center justify-between">
-            <button
-              type="button"
-              aria-label="Đính kèm"
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            >
-              <IconPlus size={16} stroke={2} />
-            </button>
+          <div className="mt-3 flex items-center justify-between">
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                aria-label="Đính kèm"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              >
+                <IconPlus size={20} stroke={1.75} />
+              </button>
+              <button
+                type="button"
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2 text-[14px] text-foreground/80 transition-colors hover:bg-accent"
+              >
+                <IconBolt size={18} stroke={1.75} className="text-amber-500" />
+                Tự động
+              </button>
+            </div>
+
             <div className="flex items-center gap-1.5">
               <button
                 type="button"
-                aria-label="Ghi âm"
-                className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2 text-[14px] font-medium text-slate-600 transition-colors hover:bg-accent hover:text-foreground"
               >
-                <IconMicrophone size={16} stroke={1.75} />
+                <ModelGlyph />
+                Mặc định
+                <IconChevronDown
+                  size={16}
+                  stroke={1.75}
+                  className="text-muted-foreground"
+                />
+              </button>
+              <button
+                type="button"
+                aria-label="Ghi âm"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-foreground/70 transition-colors hover:bg-accent hover:text-foreground"
+              >
+                <IconMicrophone size={19} stroke={1.75} />
               </button>
               <button
                 type="button"
@@ -1340,102 +1321,31 @@ function Home({
                 disabled={!canSend}
                 aria-label="Gửi"
                 className={cn(
-                  "flex h-8 w-8 items-center justify-center rounded-full transition-colors",
+                  "flex h-9 w-9 items-center justify-center rounded-xl transition-colors",
                   canSend
                     ? "bg-primary text-primary-foreground hover:bg-[var(--color-primary-hover)]"
-                    : "bg-secondary text-muted-foreground",
+                    : "bg-[#F2F4F8] text-slate-400",
                 )}
               >
-                <IconArrowUp size={16} stroke={2.25} />
+                <IconArrowUp size={18} stroke={2} />
               </button>
             </div>
           </div>
         </div>
 
         {/* Quick actions */}
-        <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+        <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5">
           {QUICK_ACTIONS.map((a) => (
             <button
               key={a.label}
               type="button"
               onClick={() => onDraftChange(a.label + ": ")}
-              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3.5 py-1.5 text-[13px] text-foreground/85 shadow-xs transition-colors hover:border-primary/30 hover:bg-accent"
+              className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-[14px] text-foreground/85 transition-colors hover:border-primary/30 hover:bg-accent"
             >
-              <a.icon size={14} stroke={1.75} className={a.tint} />
+              <a.icon size={17} stroke={1.75} className={a.tint} />
               {a.label}
             </button>
           ))}
-        </div>
-
-        {/* Pending tasks */}
-        <div className="mt-10">
-          <div className="mb-3 flex items-center justify-between">
-            <div className="flex items-center gap-2 text-[14px] font-medium text-foreground">
-              <IconClipboardList size={16} stroke={1.75} className="text-primary" />
-              Cần bạn xử lý
-              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary/10 px-1.5 text-[11px] font-semibold text-primary">
-                {PENDING_TASKS.length}
-              </span>
-            </div>
-            <button
-              type="button"
-              className="text-[12px] font-medium text-muted-foreground hover:text-foreground"
-            >
-              Xem tất cả · {PENDING_TASKS.length} ›
-            </button>
-          </div>
-
-          <ul className="flex flex-col gap-2">
-            {PENDING_TASKS.map((t) => (
-              <li
-                key={t.id}
-                className="flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-2.5 shadow-xs transition-colors hover:border-primary/30"
-              >
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-muted-foreground">
-                  <IconFileText size={16} stroke={1.75} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-[13px] font-medium text-foreground">
-                    {t.title}
-                  </div>
-                  <div className="mt-0.5 flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
-                    <span className="text-primary/80">{t.agent}</span>
-                    <span>·</span>
-                    <span>{t.time}</span>
-                    {t.tags.map((tag) => (
-                      <span
-                        key={tag}
-                        className="ml-1 rounded-md bg-secondary px-1.5 py-0.5 text-[10.5px] text-secondary-foreground"
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  className="inline-flex h-8 items-center gap-1 rounded-lg border border-border bg-background px-2.5 text-[12px] font-medium text-foreground/80 hover:bg-accent"
-                >
-                  <IconEye size={13} stroke={1.75} />
-                  Xem
-                </button>
-                <button
-                  type="button"
-                  className="inline-flex h-8 items-center gap-1 rounded-lg bg-primary px-2.5 text-[12px] font-medium text-primary-foreground hover:bg-[var(--color-primary-hover)]"
-                >
-                  <IconCheck size={13} stroke={2} />
-                  Phê duyệt
-                </button>
-                <button
-                  type="button"
-                  aria-label="Bỏ qua"
-                  className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
-                >
-                  <IconX size={14} stroke={2} />
-                </button>
-              </li>
-            ))}
-          </ul>
         </div>
       </div>
     </div>

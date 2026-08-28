@@ -65,151 +65,84 @@ const daysAgo = (n: number, hour = 10, minute = 0) => {
   return d;
 };
 
+const convo = (
+  title: string,
+  ago: [number, number, number],
+  ask: string,
+  reply: string,
+): Conversation => ({
+  id: uid(),
+  agentId: HR_AGENT.id,
+  title,
+  updatedAt: daysAgo(ago[0], ago[1], ago[2]),
+  messages: [
+    {
+      id: uid(),
+      role: "user",
+      content: ask,
+      createdAt: daysAgo(ago[0], ago[1], Math.max(0, ago[2] - 2)),
+      status: "completed",
+    },
+    {
+      id: uid(),
+      role: "assistant",
+      content: reply,
+      createdAt: daysAgo(ago[0], ago[1], ago[2]),
+      status: "completed",
+      finishReason: "stop",
+    },
+  ],
+});
+
 export const seedConversations = (): Conversation[] => [
-  {
-    id: uid(),
-    agentId: HR_AGENT.id,
-    title: "First-day IT setup checklist",
-    updatedAt: daysAgo(0, 9, 12),
-    messages: [
-      {
-        id: uid(),
-        role: "user",
-        content: "What do I need to set up on day one?",
-        createdAt: daysAgo(0, 9, 10),
-        status: "completed",
-      },
-      {
-        id: uid(),
-        role: "assistant",
-        content:
-          "Welcome aboard. On day one you'll want to finish four things:\n\n1. Activate your corporate account and enable 2FA.\n2. Install the VPN client and sign in with your SSO credentials.\n3. Join the #new-hires and #announcements channels.\n4. Book your 30-min buddy intro from the calendar invite in your inbox.\n\nMost people wrap this up before lunch. Ping me if any step blocks you.",
-        createdAt: daysAgo(0, 9, 12),
-        status: "completed",
-        finishReason: "stop",
-      },
-    ],
-  },
-  {
-    id: uid(),
-    agentId: HR_AGENT.id,
-    title: "Parental leave policy",
-    updatedAt: daysAgo(1, 15, 40),
-    messages: [
-      {
-        id: uid(),
-        role: "user",
-        content: "How much parental leave do I get?",
-        createdAt: daysAgo(1, 15, 38),
-        status: "completed",
-      },
-      {
-        id: uid(),
-        role: "assistant",
-        content:
-          "Full-time employees get 16 weeks of fully paid parental leave, usable any time in the first 12 months after the child's arrival. You can take it in up to three blocks — just file the request 30 days before each block.",
-        createdAt: daysAgo(1, 15, 40),
-        status: "completed",
-        finishReason: "stop",
-      },
-    ],
-  },
-  {
-    id: uid(),
-    agentId: HR_AGENT.id,
-    title: "Benefits enrollment window",
-    updatedAt: daysAgo(3, 11, 5),
-    messages: [
-      {
-        id: uid(),
-        role: "user",
-        content: "When does benefits enrollment close for new hires?",
-        createdAt: daysAgo(3, 11, 3),
-        status: "completed",
-      },
-      {
-        id: uid(),
-        role: "assistant",
-        content:
-          "You have 30 days from your start date to enroll. After that the next opportunity is the annual open-enrollment window in November. I can walk you through the health, dental, and 401(k) elections whenever you're ready.",
-        createdAt: daysAgo(3, 11, 5),
-        status: "completed",
-        finishReason: "stop",
-      },
-    ],
-  },
-  {
-    id: uid(),
-    agentId: HR_AGENT.id,
-    title: "Requesting equipment reimbursement",
-    updatedAt: daysAgo(5, 16, 22),
-    messages: [
-      {
-        id: uid(),
-        role: "user",
-        content: "Can I expense a monitor for my home office?",
-        createdAt: daysAgo(5, 16, 20),
-        status: "completed",
-      },
-      {
-        id: uid(),
-        role: "assistant",
-        content:
-          "Yes — you have a USD 500 home-office stipend in your first 90 days. Buy the equipment, upload the receipt to the Expenses portal under \"Home office setup\", and reimbursement lands with your next paycheck.",
-        createdAt: daysAgo(5, 16, 22),
-        status: "completed",
-        finishReason: "stop",
-      },
-    ],
-  },
-  {
-    id: uid(),
-    agentId: HR_AGENT.id,
-    title: "Probation period expectations",
-    updatedAt: daysAgo(14, 10, 30),
-    messages: [
-      {
-        id: uid(),
-        role: "user",
-        content: "What's expected during the 90-day probation?",
-        createdAt: daysAgo(14, 10, 28),
-        status: "completed",
-      },
-      {
-        id: uid(),
-        role: "assistant",
-        content:
-          "Three checkpoints: a 30-day settling review with your manager, a 60-day feedback round with your team, and a 90-day formal confirmation. Focus on ramp-up projects, not shipping big features — nobody expects heroics in month one.",
-        createdAt: daysAgo(14, 10, 30),
-        status: "completed",
-        finishReason: "stop",
-      },
-    ],
-  },
-  {
-    id: uid(),
-    agentId: HR_AGENT.id,
-    title: "Public holiday calendar",
-    updatedAt: daysAgo(28, 9, 0),
-    messages: [
-      {
-        id: uid(),
-        role: "user",
-        content: "Where can I see the public holiday calendar?",
-        createdAt: daysAgo(28, 8, 58),
-        status: "completed",
-      },
-      {
-        id: uid(),
-        role: "assistant",
-        content:
-          "It's synced to your work calendar automatically under \"Company holidays\". You can also find the printable PDF in the HR portal under Resources → Time off.",
-        createdAt: daysAgo(28, 9, 0),
-        status: "completed",
-        finishReason: "stop",
-      },
-    ],
-  },
+  convo(
+    "Dự báo thời tiết Hà Nội",
+    [0, 16, 20],
+    "Thời tiết Hà Nội ngày mai thế nào?",
+    "Hà Nội ngày mai nhiều mây, nhiệt độ 26–32°C, có mưa rào rải rác vào chiều tối. Độ ẩm khoảng 80%, gió đông nam cấp 2–3.",
+  ),
+  convo(
+    "Dự báo thời tiết Hà Nội",
+    [0, 14, 5],
+    "Cuối tuần này Hà Nội có mưa không?",
+    "Thứ Bảy trời nắng gián đoạn, 27–33°C. Chủ nhật khả năng mưa dông cao hơn vào buổi chiều, bạn nên mang theo ô.",
+  ),
+  convo(
+    "Chào buổi sáng",
+    [0, 8, 30],
+    "Chào buổi sáng!",
+    "Chào buổi sáng! Hôm nay bạn muốn bắt đầu từ việc gì? Mình có thể giúp tổng hợp báo cáo, soạn email hoặc tra cứu tài liệu.",
+  ),
+  convo(
+    "Giải bài tập đọc hiểu tiếng Anh",
+    [1, 15, 40],
+    "Giúp mình giải bài đọc hiểu tiếng Anh này với.",
+    "Được. Bạn gửi đoạn văn và câu hỏi nhé — mình sẽ phân tích ý chính từng đoạn, chỉ ra từ khoá và giải thích vì sao mỗi đáp án đúng hoặc sai.",
+  ),
+  convo(
+    "Thiết kế giao diện CRM HTML",
+    [2, 11, 5],
+    "Thiết kế giúp mình giao diện CRM bằng HTML.",
+    "Mình đã dựng bố cục gồm thanh bên điều hướng, bảng danh sách khách hàng có tìm kiếm và lọc, cùng khung chi tiết bên phải. Toàn bộ dùng HTML + Tailwind, responsive từ 1024px trở lên.",
+  ),
+  convo(
+    "Yêu cầu gửi email",
+    [3, 9, 25],
+    "Soạn giúp mình email nhắc lịch họp với đối tác.",
+    "Đây là bản nháp: tiêu đề \"Nhắc lịch họp ngày 12/9\", nội dung gồm thời gian, địa điểm, agenda ba mục và lời đề nghị xác nhận trước 17h ngày 10/9.",
+  ),
+  convo(
+    "Xuất báo cáo giá vàng file html",
+    [6, 16, 10],
+    "Xuất báo cáo giá vàng ra file HTML giúp mình.",
+    "Báo cáo đã sẵn sàng: bảng giá mua/bán theo từng thương hiệu, biểu đồ biến động 30 ngày và phần nhận định ngắn. File HTML đơn lẻ, mở trực tiếp bằng trình duyệt.",
+  ),
+  convo(
+    "Báo cáo doanh thu FPT năm 2025",
+    [12, 10, 0],
+    "Tổng hợp báo cáo doanh thu FPT năm 2025.",
+    "Mình đã tổng hợp doanh thu theo bốn quý, tách theo ba khối kinh doanh, kèm so sánh cùng kỳ và biểu đồ tăng trưởng. Bạn muốn xuất ra Excel hay PowerPoint?",
+  ),
 ];
 
 /* ----- Mock responder ------------------------------------------------- */
