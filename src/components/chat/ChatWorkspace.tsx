@@ -53,14 +53,13 @@ import {
   type StreamHandle,
 } from "@/lib/hr-onboarding-mock";
 import { loadState, saveState } from "@/lib/persistence";
-import { ScheduledTasks } from "@/components/chat/ScheduledTasks";
-import { SCHEDULED_TASKS } from "@/lib/scheduled-tasks-mock";
+import {
+  USER_NAME,
+  WorkspaceSidebar,
+  useSidebarCollapsed,
+} from "@/components/workspace/WorkspaceSidebar";
 
 type ChatStatus = "idle" | "waiting" | "streaming";
-type WorkspaceView = "chat" | "schedules";
-
-const USER_NAME = "Trang Nguyen Huyen";
-const USER_SUBTITLE = "Trang Nguyen Huyen Workspace";
 
 const suggestions = [
   "What's covered in my benefits package?",
@@ -80,7 +79,6 @@ export function ChatWorkspace() {
     initial?.activeId ?? null,
   );
   const [status, setStatus] = useState<ChatStatus>("idle");
-  const [view, setView] = useState<WorkspaceView>("chat");
   const [search, setSearch] = useState("");
   const [drafts, setDrafts] = useState<Record<string, string>>(
     initial?.drafts ?? {},
@@ -90,27 +88,7 @@ export function ChatWorkspace() {
 
   useEffect(() => () => streamRef.current?.stop(), []);
 
-  // Sidebar collapse. Start false on SSR to avoid hydration mismatch, then
-  // read the persisted preference in an effect.
-  const [collapsed, setCollapsed] = useState(false);
-  useEffect(() => {
-    try {
-      setCollapsed(localStorage.getItem("uaw:sidebar-collapsed") === "1");
-    } catch {
-      /* ignore */
-    }
-  }, []);
-  const toggleSidebar = useCallback(() => {
-    setCollapsed((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem("uaw:sidebar-collapsed", next ? "1" : "0");
-      } catch {
-        /* ignore */
-      }
-      return next;
-    });
-  }, []);
+  const { collapsed, toggle: toggleSidebar } = useSidebarCollapsed();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "b") {
@@ -310,7 +288,6 @@ export function ChatWorkspace() {
     streamRef.current?.stop();
     setActiveId(null);
     setStatus("idle");
-    setView("chat");
   }, []);
 
   // Change the agent on the active conversation. Locked after the first
@@ -340,19 +317,16 @@ export function ChatWorkspace() {
 
   return (
     <div className="flex h-screen w-full bg-background text-foreground">
-      <Sidebar
+      <WorkspaceSidebar
         conversations={filtered}
         activeId={activeId}
-        view={view}
-        onOpenSchedules={() => setView("schedules")}
-        scheduleCount={SCHEDULED_TASKS.length}
+        nav="chat"
         search={search}
         onSearch={setSearch}
         onSelect={(id) => {
           streamRef.current?.stop();
           setActiveId(id);
           setStatus("idle");
-          setView("chat");
         }}
         onNewChat={handleNewChat}
         collapsed={collapsed}
@@ -361,19 +335,17 @@ export function ChatWorkspace() {
 
       <main className="relative flex min-w-0 flex-1 flex-col">
         {/* Quay lại nền tảng cũ — chỉ hiện ở màn hình chào, tránh đè lên Header */}
-        {!active && view === "chat" && (
+        {!active && (
           <button
             type="button"
-            className="absolute right-6 top-5 z-10 inline-flex h-9 items-center gap-2 rounded-full bg-[#F2F5F9] px-4 text-[13px] font-medium text-slate-500 transition-colors hover:bg-[#E8ECF3] hover:text-slate-700"
+            className="absolute right-6 top-5 z-10 inline-flex h-9 items-center gap-2 rounded-full bg-muted px-4 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
             <IconRefresh size={16} stroke={1.75} />
             Chuyển về nền tảng cũ
           </button>
         )}
 
-        {view === "schedules" ? (
-          <ScheduledTasks />
-        ) : active ? (
+        {active ? (
           <>
             <Header
               agent={headerAgent}
@@ -406,286 +378,6 @@ export function ChatWorkspace() {
         )}
       </main>
     </div>
-  );
-}
-
-/* ---------- Sidebar ---------------------------------------------------- */
-
-function Sidebar({
-  conversations,
-  activeId,
-  view,
-  onOpenSchedules,
-  scheduleCount,
-  search,
-  onSearch,
-  onSelect,
-  onNewChat,
-  collapsed,
-  onToggle,
-}: {
-  conversations: Conversation[];
-  activeId: string | null;
-  view: WorkspaceView;
-  onOpenSchedules: () => void;
-  scheduleCount: number;
-  search: string;
-  onSearch: (v: string) => void;
-  onSelect: (id: string) => void;
-  onNewChat: () => void;
-  collapsed: boolean;
-  onToggle: () => void;
-}) {
-  const [searchOpen, setSearchOpen] = useState(false);
-
-  const secondary = [
-    { key: "projects", label: "Dự án", icon: IconFolder },
-    { key: "market", label: "Chợ Agent", icon: IconBuildingStore },
-    { key: "artifacts", label: "Artifacts", icon: IconPackage },
-    {
-      key: "schedules",
-      label: "Tác vụ định kỳ",
-      icon: IconClockPlay,
-      badge: scheduleCount,
-      active: view === "schedules",
-      onClick: onOpenSchedules,
-    },
-    { key: "connections", label: "Kết nối", icon: IconPlugConnected },
-    { key: "mcp", label: "Xác thực MCP", icon: IconStack2 },
-    { key: "console", label: "Xây trong Console", icon: IconLayoutGrid },
-  ];
-
-  return (
-    <aside
-      className={cn(
-        "hidden shrink-0 flex-col overflow-hidden border-r border-border/70 bg-sidebar transition-[width] duration-200 md:flex",
-        collapsed ? "w-14" : "w-[288px]",
-      )}
-    >
-      {/* Brand + search + collapse toggle */}
-      <div
-        className={cn(
-          "flex h-16 items-center px-4",
-          collapsed ? "flex-col justify-center gap-2 px-0" : "justify-between",
-        )}
-      >
-        {collapsed ? (
-          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-[9px] font-bold text-primary-foreground">
-            .Ai
-          </span>
-        ) : (
-          <img
-            src="/fpt-ai-logo.png"
-            alt="FPT.AI"
-            className="h-7 w-auto select-none"
-            draggable={false}
-          />
-        )}
-        <div className={cn("flex items-center", collapsed ? "flex-col gap-1" : "gap-1")}>
-          <button
-            type="button"
-            aria-label="Tìm kiếm"
-            title="Tìm kiếm hội thoại"
-            onClick={() => setSearchOpen((v) => !v)}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          >
-            <IconSearch size={18} stroke={1.75} />
-          </button>
-          <button
-            type="button"
-            aria-label={collapsed ? "Hiện thanh bên" : "Ẩn thanh bên"}
-            title={`${collapsed ? "Hiện" : "Ẩn"} thanh bên (Ctrl+B)`}
-            onClick={onToggle}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          >
-            <IconLayoutSidebar size={18} stroke={1.75} />
-          </button>
-        </div>
-      </div>
-
-      {/* Primary CTA — Trò chuyện mới */}
-      <div className={cn("pt-1", collapsed ? "px-1.5" : "px-3")}>
-        <button
-          type="button"
-          onClick={onNewChat}
-          title={collapsed ? "Trò chuyện mới" : undefined}
-          aria-label={collapsed ? "Trò chuyện mới" : undefined}
-          className={cn(
-            "flex w-full items-center rounded-lg text-[14px] font-medium transition-colors",
-            view === "chat"
-              ? "bg-[#EFF1FC] text-primary hover:bg-[#E4E8FA]"
-              : "text-foreground/80 hover:bg-accent",
-            collapsed ? "h-10 justify-center px-0" : "h-10 gap-3 px-3",
-          )}
-        >
-          <IconEdit size={19} stroke={1.75} />
-          {!collapsed && <span className="flex-1 text-left">Trò chuyện mới</span>}
-        </button>
-      </div>
-
-      {/* Secondary nav */}
-      <div className={cn("pt-1", collapsed ? "px-1.5" : "px-3")}>
-        {secondary.map(({ key, ...item }) => (
-          <SidebarItem key={key} {...item} collapsed={collapsed} />
-        ))}
-      </div>
-
-      {/* Inline search */}
-      {!collapsed && searchOpen && (
-        <div className="px-3 pt-3">
-          <label className="flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-3 focus-within:border-primary focus-within:ring-2 focus-within:ring-ring/20">
-            <IconSearch size={14} className="text-muted-foreground" stroke={2} />
-            <input
-              value={search}
-              onChange={(e) => onSearch(e.target.value)}
-              placeholder="Tìm hội thoại"
-              autoFocus
-              className="min-w-0 flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
-            />
-          </label>
-        </div>
-      )}
-
-      {!collapsed ? (
-        <nav className="mt-5 flex-1 overflow-y-auto px-3 pb-3">
-          {conversations.length > 0 && (
-            <>
-              <div className="px-3 pb-2 text-[11.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                Cuộc trò chuyện
-              </div>
-              <ul className="flex flex-col gap-0.5">
-                {conversations.map((c) => {
-                  const isActive = c.id === activeId;
-                  return (
-                    <li key={c.id}>
-                      <button
-                        type="button"
-                        onClick={() => onSelect(c.id)}
-                        className={cn(
-                          "flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-[14px] transition-colors",
-                          isActive
-                            ? "bg-accent font-medium text-foreground"
-                            : "text-foreground/75 hover:bg-accent",
-                        )}
-                      >
-                        <span className="truncate">{c.title}</span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </>
-          )}
-        </nav>
-      ) : (
-        <div className="flex-1" />
-      )}
-
-      {/* User card */}
-      <div className={cn("p-2", collapsed ? "px-1.5" : "px-3 py-3")}>
-        {collapsed ? (
-          <div className="flex justify-center">
-            <div
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground"
-              title={USER_NAME}
-            >
-              TH
-            </div>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2 rounded-xl px-1 py-2 hover:bg-accent">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#4056E0] to-[#1B2B8F] text-[11.5px] font-semibold text-white">
-              TH
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-[13px] font-semibold leading-tight text-foreground">
-                {USER_NAME}
-              </div>
-              <div className="truncate text-[11.5px] text-muted-foreground">
-                {USER_SUBTITLE}
-              </div>
-            </div>
-            <button
-              type="button"
-              aria-label="Đổi tài khoản"
-              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
-            >
-              <IconSelector size={15} stroke={1.75} />
-            </button>
-            <button
-              type="button"
-              aria-label="Thông báo"
-              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
-            >
-              <IconBell size={15} stroke={1.75} />
-            </button>
-          </div>
-        )}
-      </div>
-    </aside>
-  );
-}
-
-
-function SidebarItem({
-  label,
-  icon: Icon,
-  shortcut,
-  badge,
-  active,
-  onClick,
-  collapsed,
-}: {
-  label: string;
-  icon: typeof IconSearch;
-  shortcut?: string[];
-  badge?: number;
-  active?: boolean;
-  onClick?: () => void;
-  collapsed?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={collapsed ? label : undefined}
-      aria-label={collapsed ? label : undefined}
-      className={cn(
-        "group flex w-full items-center rounded-lg text-left text-[14px] transition-colors",
-        collapsed ? "h-10 justify-center px-0" : "h-10 gap-3 px-3",
-        active
-          ? "bg-accent font-semibold text-foreground"
-          : "text-foreground/80 hover:bg-accent",
-      )}
-    >
-      <Icon
-        size={19}
-        stroke={1.75}
-        className={cn(active ? "text-foreground" : "text-muted-foreground")}
-      />
-      {!collapsed && (
-        <>
-          <span className="flex-1 truncate">{label}</span>
-          {typeof badge === "number" && badge > 0 && (
-            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-semibold text-primary-foreground">
-              {badge}
-            </span>
-          )}
-          {shortcut && (
-            <span className="flex items-center gap-0.5">
-              {shortcut.map((k) => (
-                <kbd
-                  key={k}
-                  className="flex h-[18px] min-w-[18px] items-center justify-center rounded border border-border bg-background px-1 text-[10px] font-medium text-muted-foreground"
-                >
-                  {k}
-                </kbd>
-              ))}
-            </span>
-          )}
-        </>
-      )}
-    </button>
   );
 }
 
@@ -1225,11 +917,11 @@ function Composer({
 /* ---------- Home ------------------------------------------------------ */
 
 const QUICK_ACTIONS = [
-  { label: "Tổng hợp báo cáo", icon: IconChartBar, tint: "text-rose-500" },
-  { label: "Soạn email", icon: IconMail, tint: "text-emerald-500" },
-  { label: "Tìm tài liệu", icon: IconFolderSearch, tint: "text-amber-500" },
-  { label: "Tạo website", icon: IconBrowser, tint: "text-sky-500" },
-  { label: "Viết code", icon: IconCode, tint: "text-violet-500" },
+  { label: "Tổng hợp báo cáo", icon: IconChartBar, tint: "text-chart-5" },
+  { label: "Soạn email", icon: IconMail, tint: "text-chart-4" },
+  { label: "Tìm tài liệu", icon: IconFolderSearch, tint: "text-chart-3" },
+  { label: "Tạo website", icon: IconBrowser, tint: "text-chart-2" },
+  { label: "Viết code", icon: IconCode, tint: "text-chart-1" },
 ];
 
 function greeting() {
@@ -1244,7 +936,7 @@ function greeting() {
 function ModelGlyph() {
   return (
     <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary">
-      <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 text-white">
+      <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 text-primary-foreground">
         <g stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
           <line x1="11.5" y1="13" x2="13" y2="5.5" />
           <line x1="11.5" y1="13" x2="21" y2="4" />
@@ -1321,7 +1013,7 @@ function AttachMenu() {
       {open && (
         <div
           role="menu"
-          className="absolute bottom-full left-0 z-20 mb-3 w-[264px] rounded-2xl border border-border bg-popover p-2 shadow-lg"
+          className="absolute bottom-full left-0 z-20 mb-3 w-[264px] rounded-lg border border-border bg-popover p-2 text-popover-foreground shadow-sm"
         >
           {items.map((item) => (
             <button
@@ -1491,9 +1183,9 @@ function Home({
           <p className="text-[17px] text-muted-foreground">
             {greeting()}, {userName} <span aria-hidden>👋</span>
           </p>
-          <h1 className="mt-2.5 text-[30px] font-semibold leading-tight tracking-tight text-[#030816]">
+          <h1 className="mt-2.5 text-[30px] font-semibold leading-tight tracking-tight text-foreground">
             Chúng ta cùng{" "}
-            <span className="text-[#5644DE]">bắt đầu từ đâu nhỉ?</span>
+            <span className="text-primary">bắt đầu từ đâu nhỉ?</span>
           </h1>
         </div>
 
@@ -1515,7 +1207,7 @@ function Home({
                 type="button"
                 className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2 text-[14px] text-foreground/80 transition-colors hover:bg-accent"
               >
-                <IconBolt size={18} stroke={1.75} className="text-amber-500" />
+                <IconBolt size={18} stroke={1.75} className="text-warning" />
                 Tự động
               </button>
             </div>
@@ -1538,7 +1230,7 @@ function Home({
                   "flex h-9 w-9 items-center justify-center rounded-xl transition-colors",
                   canSend
                     ? "bg-primary text-primary-foreground hover:bg-[var(--color-primary-hover)]"
-                    : "bg-[#F2F4F8] text-slate-400",
+                    : "bg-muted text-muted-foreground",
                 )}
               >
                 <IconArrowUp size={18} stroke={2} />

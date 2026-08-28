@@ -50,6 +50,12 @@
   --color-ring: var(--ring);
   --color-ring-offset-background: var(--background);
 
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -104,6 +110,13 @@
   --ring: oklch(0.442 0.240 268);                     /* focus = brand */
 
   /* Sidebar */
+  /* Dải màu biểu đồ — indigo 5 bậc, dùng cho chart và các nhãn phân loại. */
+  --chart-1: oklch(0.760 0.100 275);
+  --chart-2: oklch(0.680 0.140 272);
+  --chart-3: oklch(0.590 0.180 270);
+  --chart-4: oklch(0.500 0.210 268);
+  --chart-5: oklch(0.415 0.200 266);
+
   --sidebar: oklch(0.977 0.005 247.858);              /* slate-50/60 wash */
   --sidebar-foreground: oklch(0.208 0.042 265.755);
   --sidebar-primary: oklch(0.442 0.240 268);
@@ -139,6 +152,12 @@
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.560 0.220 268);
+  --chart-1: oklch(0.820 0.090 275);
+  --chart-2: oklch(0.740 0.130 272);
+  --chart-3: oklch(0.660 0.170 270);
+  --chart-4: oklch(0.580 0.200 268);
+  --chart-5: oklch(0.500 0.195 266);
+
   --sidebar: oklch(0.208 0.042 265.755);
   --sidebar-foreground: oklch(0.984 0.003 247.858);
   --sidebar-primary: oklch(0.560 0.220 268);
