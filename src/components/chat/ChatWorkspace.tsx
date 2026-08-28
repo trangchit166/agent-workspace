@@ -11,6 +11,7 @@ import {
   IconChartBar,
   IconCheck,
   IconChevronDown,
+  IconCircleCheckFilled,
   IconClockPlay,
   IconCode,
   IconCopy,
@@ -1347,6 +1348,111 @@ function AttachMenu() {
   );
 }
 
+/** Danh sách agent có thể chọn cho khung soạn thảo. */
+const COMPOSER_AGENTS = [
+  { id: "default", name: "Mặc định", free: true },
+  { id: "customer-support", name: "Customer Support Agent", free: false },
+  { id: "email-writer", name: "Email Writer Agent", free: false },
+  { id: "order-support", name: "Tạo agent hỗ trợ order khách hàng", free: false },
+];
+
+function AgentAvatar({ id }: { id: string }) {
+  if (id === "default") return <ModelGlyph />;
+  return (
+    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+      <IconRobot size={17} stroke={1.75} />
+    </span>
+  );
+}
+
+/** Menu chọn agent, mở từ chip trong khung soạn thảo. */
+function AgentMenu() {
+  const [open, setOpen] = useState(false);
+  const [selected, setSelected] = useState(COMPOSER_AGENTS[0].id);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const current =
+    COMPOSER_AGENTS.find((a) => a.id === selected) ?? COMPOSER_AGENTS[0];
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <button
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          "inline-flex h-8 max-w-[220px] items-center gap-1.5 rounded-lg px-2 text-[14px] font-medium transition-colors hover:bg-accent hover:text-foreground",
+          open ? "bg-accent text-foreground" : "text-muted-foreground",
+        )}
+      >
+        <AgentAvatar id={current.id} />
+        <span className="truncate">{current.name}</span>
+        <IconChevronDown
+          size={16}
+          stroke={1.75}
+          className="shrink-0 text-muted-foreground"
+        />
+      </button>
+
+      {open && (
+        <div
+          role="menu"
+          className="absolute bottom-full right-0 z-20 mb-3 w-[288px] rounded-lg border border-border bg-popover p-2 text-popover-foreground shadow-sm"
+        >
+          {COMPOSER_AGENTS.map((agent) => {
+            const isSelected = agent.id === selected;
+            return (
+              <button
+                key={agent.id}
+                type="button"
+                role="menuitemradio"
+                aria-checked={isSelected}
+                onClick={() => {
+                  setSelected(agent.id);
+                  setOpen(false);
+                }}
+                className="flex h-12 w-full items-center gap-2.5 rounded-md px-2 text-left transition-colors hover:bg-accent"
+              >
+                <AgentAvatar id={agent.id} />
+                <span className="truncate text-sm font-medium">
+                  {agent.name}
+                </span>
+                {agent.free && (
+                  <span className="shrink-0 rounded-sm bg-success/10 px-1.5 py-0.5 text-xs font-medium text-success">
+                    Miễn phí
+                  </span>
+                )}
+                <span className="ml-auto shrink-0">
+                  {isSelected && (
+                    <IconCircleCheckFilled size={18} className="text-primary" />
+                  )}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Home({
   userName,
   draft,
@@ -1415,18 +1521,7 @@ function Home({
             </div>
 
             <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2 text-[14px] font-medium text-slate-600 transition-colors hover:bg-accent hover:text-foreground"
-              >
-                <ModelGlyph />
-                Mặc định
-                <IconChevronDown
-                  size={16}
-                  stroke={1.75}
-                  className="text-muted-foreground"
-                />
-              </button>
+              <AgentMenu />
               <button
                 type="button"
                 aria-label="Ghi âm"
